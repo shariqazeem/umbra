@@ -1,0 +1,21 @@
+{
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "contractIds": {
+    "pool": "CBGB5DAYD7RYIHDK2T6DE364VD3RJZGG5AUEQETW6LO3ZI4A5L3LSDV7",
+    "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+  },
+  "wasmHash": "6cc6890a8bad5ce52e2b65df9e87060b19215a2cf9b24ebe4c16d33e7cbce35f",
+  "deployTx": "d4f96c053724ee303e73e74104891e4dc74302d27a3fe6c0f8b6ef362f82d660",
+  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/d4f96c053724ee303e73e74104891e4dc74302d27a3fe6c0f8b6ef362f82d660",
+  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CBGB5DAYD7RYIHDK2T6DE364VD3RJZGG5AUEQETW6LO3ZI4A5L3LSDV7",
+  "deployer": "GAHR34WCIIS4TQDGC362ETJSHXNLE6AF6ZDK3EPONNPFRIEXLWNOHYXQ",
+  "deployerId": "umbra-deployer",
+  "explorerBase": "https://stellar.expert/explorer/testnet",
+  "deployedAt": "2026-06-21T11:53:10Z",
+  "shieldTx": "9fb4dc1579df048b4a5c13b90e34f649c6a59f22e530a33192fdfdfcce7f8efc",
+  "withdrawTx": "aa5cf13217212290728c9c264620003309664b1d8a0db8e816a1b59f4107c676",
+  "shieldExplorerUrl": "https://stellar.expert/explorer/testnet/tx/9fb4dc1579df048b4a5c13b90e34f649c6a59f22e530a33192fdfdfcce7f8efc",
+  "withdrawExplorerUrl": "https://stellar.expert/explorer/testnet/tx/aa5cf13217212290728c9c264620003309664b1d8a0db8e816a1b59f4107c676",
+  "demoCapturedAt": "2026-06-21T11:55:20Z"
+}
