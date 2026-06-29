@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = ["groth16-verifier", "bench-pool", "umbra-pool"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+
+# Pinned to a Protocol-22 SDK: BLS12-381 host functions (CAP-0059) land here.
+# Validate the exact patch against your target testnet protocol before relying on B04.
+[workspace.dependencies]
+soroban-sdk = "22.0.8"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
