@@ -1,0 +1,49 @@
+{
+  "name": "@umbra/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Umbra SDK — plug private payments into your Stellar app. The same on-chain-verified primitives Umbra's own products run on.",
+  "license": "MIT",
+  "homepage": "https://umbra.finance",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/umbra-privacy/umbra"
+  },
+  "keywords": [
+    "stellar",
+    "soroban",
+    "zero-knowledge",
+    "zk",
+    "groth16",
+    "bls12-381",
+    "poseidon",
+    "privacy",
+    "private-payments",
+    "payment-links"
+  ],
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@umbra/crypto-bls": "workspace:*",
+    "@umbra/wallet-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

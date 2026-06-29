@@ -1,0 +1,23 @@
+{
+  "name": "@umbra/benchmarks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark": "tsx bin/benchmark.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"(benchmarks are the tests; run `pnpm benchmark`)\" && exit 0"
+  },
+  "dependencies": {
+    "@umbra/bench-harness": "workspace:*",
+    "@umbra/crypto-bls": "workspace:*"
+  },
+  "optionalDependencies": {
+    "snarkjs": "0.7.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
