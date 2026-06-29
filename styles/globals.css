@@ -1,0 +1,225 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Umbra design system — Premium Financial (Apple simplicity · Stripe trust ·
+ * Linear precision). Light-first. Soft surfaces, hairline borders, layered low-
+ * opacity shadows, generous space.
+ *
+ * Palette:
+ *   Background #FAFAFA · Surface #FFFFFF · Ink #111111 · Secondary #6B7280
+ *   Hairline  #E5E7EB · Signal #FF3B00 (cryptographic moments ONLY)
+ * Values below are `H S% L%` triplets feeding shadcn/ui tokens.
+ */
+@layer base {
+  :root {
+    /* Umbra — Dark / "privacy infrastructure" theme. Near-black surfaces, white
+       ink, and the #FF3B00 signal promoted to the brand accent (CTAs + crypto). */
+    --background: 0 0% 4%; /* #0A0A0A */
+    --foreground: 0 0% 98%; /* #FAFAFA */
+
+    --card: 0 0% 7%; /* #121212 */
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 14 100% 50%; /* #FF3B00 — brand accent / primary CTA */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 12%; /* #1F1F1F subtle dark fill */
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 60%; /* #999999 */
+
+    --accent: 14 100% 50%; /* #FF3B00 signal */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 55% 46%; /* confirmation green (brighter for dark) */
+    --success-foreground: 0 0% 100%;
+
+    --border: 0 0% 16%; /* #292929 hairline on dark */
+    --input: 0 0% 16%;
+    --ring: 14 100% 50%; /* signal focus ring */
+
+    --radius: 12px;
+
+    /* Shadows give way to glow on dark. */
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.5);
+    --shadow-md: 0 8px 30px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 16px 50px rgb(0 0 0 / 0.6);
+    --shadow-signal: 0 0 32px -4px rgb(255 59 0 / 0.45);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  /* Smooth scrolling is handled by Lenis (the cinematic landing); native
+     scroll-behavior is left off so the two don't fight. */
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1,
+      "ss01" 1,
+      "cv11" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.011em; /* the subtle negative tracking premium UIs use */
+  }
+
+  /* Monospaced crypto data: addresses, hashes, proofs, balances. */
+  .font-mono {
+    font-feature-settings:
+      "zero" 1,
+      "calt" 0;
+    letter-spacing: 0;
+  }
+}
+
+/* Premium primitives expressed as utilities so components stay terse. */
+@layer components {
+  .u-card {
+    @apply rounded-2xl border border-border bg-card;
+    box-shadow: var(--shadow-sm), inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+  }
+  .u-card-lg {
+    @apply rounded-2xl border border-border bg-card;
+    box-shadow: var(--shadow-lg), inset 0 1px 0 0 rgb(255 255 255 / 0.06);
+  }
+  .u-elevate {
+    box-shadow: var(--shadow-md);
+  }
+  .u-focus {
+    @apply outline-none ring-2 ring-ring/60 ring-offset-2 ring-offset-background;
+  }
+  /* The signal glow — used only on cryptographic affordances. */
+  .u-signal-glow {
+    box-shadow: var(--shadow-signal);
+  }
+}
+
+/* Animation system (see DESIGN_SYSTEM.md §Animation). Calm, purposeful, brief. */
+@layer utilities {
+  @keyframes u-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes u-check-pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    60% {
+      transform: scale(1.08);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes u-pulse-soft {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  @keyframes u-sheen {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  .u-animate-fade-up {
+    animation: u-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .u-animate-check {
+    animation: u-check-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .u-animate-pulse {
+    animation: u-pulse-soft 1.4s ease-in-out infinite;
+  }
+
+  /* Separation shimmer (withdraw reveal): a single signal-colored scan that
+   * crosses the seam between the two panels ONCE on entry, then leaves only the
+   * static enforced boundary behind — the separation being enforced, not decor. */
+  @keyframes u-separation-y {
+    from {
+      transform: translateY(-130%);
+    }
+    to {
+      transform: translateY(360%);
+    }
+  }
+  @keyframes u-separation-x {
+    from {
+      transform: translateX(-130%);
+    }
+    to {
+      transform: translateX(360%);
+    }
+  }
+  .u-animate-separation-y {
+    animation: u-separation-y 1.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .u-animate-separation-x {
+    animation: u-separation-x 1.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .u-animate-fade-up,
+    .u-animate-check,
+    .u-animate-pulse,
+    .u-animate-separation-y,
+    .u-animate-separation-x {
+      animation: none;
+    }
+  }
+}
+
+/* Cinematic background — drifting signal auroras behind the landing. */
+@layer utilities {
+  @keyframes u-drift-1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(7%, 11%) scale(1.18); }
+  }
+  @keyframes u-drift-2 {
+    0%, 100% { transform: translate(0, 0) scale(1.05); }
+    50% { transform: translate(-9%, -7%) scale(1.2); }
+  }
+  @keyframes u-drift-3 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(6%, -10%) scale(1.22); }
+  }
+  .u-aurora-1 { animation: u-drift-1 24s ease-in-out infinite; will-change: transform; }
+  .u-aurora-2 { animation: u-drift-2 31s ease-in-out infinite; will-change: transform; }
+  .u-aurora-3 { animation: u-drift-3 27s ease-in-out infinite; will-change: transform; }
+  @media (prefers-reduced-motion: reduce) {
+    .u-aurora-1, .u-aurora-2, .u-aurora-3 { animation: none; }
+  }
+}
+
+/* 3D pool scene — slow liquid ring rotation. */
+@layer utilities {
+  @keyframes u-pool-spin { to { transform: rotate(360deg); } }
+  .u-pool-spin { animation: u-pool-spin 16s linear infinite; will-change: transform; }
+  @media (prefers-reduced-motion: reduce) { .u-pool-spin { animation: none; } }
+}

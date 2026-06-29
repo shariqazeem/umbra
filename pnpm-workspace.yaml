@@ -1,0 +1,5 @@
+packages:
+  - "packages/*"
+# contracts/ (Rust/Cargo) and circuits/ (Circom) are non-JS build domains and are
+# intentionally NOT pnpm workspace members. They are driven by their own toolchains
+# (cargo, circom, snarkjs) and orchestrated by the benchmark harness via scripts.
