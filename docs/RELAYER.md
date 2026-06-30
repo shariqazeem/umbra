@@ -28,6 +28,19 @@ What the relayer receives is **already public** (it's the contract's public inpu
 read from the chain after the fact — except it doesn't see the user's IP-less submitter
 account, which is the whole point.
 
+### Trustless by construction (thanks to C1)
+
+The relayer **cannot steal or redirect** the withdrawal. The contract binds the proof to
+its payout address: `recipient` must equal `field(to)`, so if a malicious relayer swaps in
+its own `to`, the proof no longer matches and the contract rejects it
+(`Error::RecipientMismatch`) — see `docs/SECURITY_REVIEW.md` §7 (C1). The relayer also
+can't double-spend or forge (proof + nullifier are enforced on-chain), and a rejected
+redirect doesn't even burn the user's note. The worst a relayer can do is **refuse to
+submit** (censorship) — which is why the user can always fall back to submitting the same
+public payload themselves, or use another relayer. This is what makes the Enoki-style
+"anyone can host a relayer with our SDK" model safe: hosting a relayer grants **no custody
+and no redirect power**.
+
 ## API
 
 ```
