@@ -13,6 +13,7 @@ import { Address } from "@stellar/stellar-sdk";
 import {
   MerkleTree,
   buildShieldInput,
+  buildTransferInput,
   buildWithdrawInput,
   commitment,
   makeNote,
@@ -48,12 +49,21 @@ const cm = commitment(note);
 const tree = new MerkleTree();
 note.leafIndex = tree.insert(cm);
 
-// 2. Build both circuit inputs.
+// 2. Build the shield + withdraw circuit inputs.
 const shieldInput = buildShieldInput(note);
 const withdrawInput = buildWithdrawInput(note, tree, RECIPIENT);
 
 writeFileSync(join(build, "shield_input.json"), JSON.stringify(shieldInput, null, 2));
 writeFileSync(join(build, "withdraw_input.json"), JSON.stringify(withdrawInput, null, 2));
+
+// 3. Confidential transfer (join-split, 1-in / 2-out): spend the shielded note into a
+// recipient note + a change note. Values are private; only conservation is enforced.
+const OUT1 = 700n; // recipient
+const OUT2 = AMOUNT - OUT1; // change
+const out1 = makeNote(OUT1);
+const out2 = makeNote(OUT2);
+const transferInput = buildTransferInput(note, tree, out1, out2);
+writeFileSync(join(build, "transfer_input.json"), JSON.stringify(transferInput, null, 2));
 writeFileSync(
   join(build, "slice_meta.json"),
   JSON.stringify(

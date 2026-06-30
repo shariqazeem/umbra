@@ -22,7 +22,9 @@ fn build_dir() -> std::path::PathBuf {
 }
 
 fn fixtures_present() -> bool {
-    build_dir().join("shield_soroban.json").exists() && build_dir().join("withdraw_soroban.json").exists()
+    build_dir().join("shield_soroban.json").exists()
+        && build_dir().join("withdraw_soroban.json").exists()
+        && build_dir().join("transfer_soroban.json").exists()
 }
 
 fn b<const N: usize>(env: &Env, h: &str) -> BytesN<N> {
@@ -73,6 +75,7 @@ struct Ctx<'a> {
     token: token::TokenClient<'a>,
     depositor: Address,
     withdraw: Fixture,
+    transfer: Fixture,
 }
 
 /// Register the pool + a test asset, init with both VKs, mint to a depositor, and
@@ -84,6 +87,7 @@ fn setup<'a>() -> Ctx<'a> {
 
     let shield = load(&env, "shield");
     let withdraw = load(&env, "withdraw");
+    let transfer = load(&env, "transfer");
 
     // Test asset.
     let admin = Address::generate(&env);
@@ -96,7 +100,10 @@ fn setup<'a>() -> Ctx<'a> {
     token_admin.mint(&depositor, &AMOUNT);
 
     // Pool — initialized atomically via the constructor (H1: no separate init call).
-    let id = env.register(UmbraPool, (token_addr.clone(), shield.vk.clone(), withdraw.vk.clone()));
+    let id = env.register(
+        UmbraPool,
+        (token_addr.clone(), shield.vk.clone(), withdraw.vk.clone(), transfer.vk.clone()),
+    );
     let client = UmbraPoolClient::new(&env, &id);
 
     // Shield: publics = [commitment, amount].
@@ -105,7 +112,7 @@ fn setup<'a>() -> Ctx<'a> {
     assert_eq!(leaf, 0);
     assert_eq!(token.balance(&id), AMOUNT, "pool holds the shielded funds");
 
-    Ctx { env, client, token, depositor, withdraw }
+    Ctx { env, client, token, depositor, withdraw, transfer }
 }
 
 // withdraw publics = [root, nullifier, recipient, amount]
@@ -182,6 +189,37 @@ fn wrong_payee_rejected() {
     ctx.client
         .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &to);
     assert_eq!(ctx.token.balance(&to), AMOUNT, "the bound payee is paid");
+}
+
+// Confidential transfer: spend the input note into two output commitments. Amounts are
+// hidden (no amount is a public input), value never leaves the pool, and the chain sees
+// only a spent nullifier + two new commitments.
+#[test]
+fn confidential_transfer_works() {
+    if !fixtures_present() {
+        eprintln!("SKIP confidential_transfer: proof fixtures absent");
+        return;
+    }
+    let ctx = setup();
+    let t = &ctx.transfer;
+    // transfer publics = [root, nullifier, outCommitment1, outCommitment2]
+    let root = t.publics.get_unchecked(0);
+    let nullifier = t.publics.get_unchecked(1);
+    let out1 = t.publics.get_unchecked(2);
+    let out2 = t.publics.get_unchecked(3);
+
+    let before = ctx.client.next_index();
+    let (leaf1, leaf2) = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2);
+    assert_eq!(leaf1, before, "first output inserted at the next slot");
+    assert_eq!(leaf2, before + 1, "second output inserted after it");
+    assert_eq!(ctx.client.next_index(), before + 2, "two output commitments inserted");
+    assert!(ctx.client.is_spent(&nullifier), "the input note's nullifier is spent");
+    // No token moved — the pool still holds exactly the shielded amount.
+    assert_eq!(ctx.token.balance(&ctx.client.address), AMOUNT, "value stays in the pool");
+
+    // Double-spend of the same input note is rejected.
+    let again = ctx.client.try_transfer(&t.proof, &root, &nullifier, &out1, &out2);
+    assert!(again.is_err(), "reusing the spent nullifier must fail");
 }
 
 #[test]

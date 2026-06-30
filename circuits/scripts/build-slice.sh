@@ -29,7 +29,7 @@ if [ ! -f pot_final.ptau ]; then
   $SNARKJS powersoftau prepare phase2 pot_1.ptau pot_final.ptau -v
 fi
 
-for NAME in shield withdraw; do
+for NAME in shield withdraw transfer; do
   echo "==> $NAME: compile + setup + prove + export"
   [ -f "$NAME.r1cs" ] || circom "$SRC/$NAME.circom" --r1cs --wasm --prime bls12381 -o "$BUILD" -l "$SRC"
   $SNARKJS groth16 setup "$NAME.r1cs" pot_final.ptau "${NAME}_0.zkey"

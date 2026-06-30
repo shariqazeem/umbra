@@ -41,3 +41,52 @@ export function buildWithdrawInput(note: Note, tree: MerkleTree, recipient: bigi
     pathIndices: p.pathIndices.map((x) => x.toString()),
   };
 }
+
+/** Confidential transfer (join-split, 1-in / 2-out). Amounts are PRIVATE witnesses. */
+export interface TransferInput {
+  root: string;
+  nullifier: string;
+  outCommitment1: string;
+  outCommitment2: string;
+  secret: string;
+  value: string;
+  pathElements: string[];
+  pathIndices: string[];
+  outSecret1: string;
+  outValue1: string;
+  outSecret2: string;
+  outValue2: string;
+}
+
+/**
+ * Build the witness for a shielded→shielded confidential transfer: spend `inNote` and
+ * create two output notes (`out1` = recipient, `out2` = change). Enforces value
+ * conservation off-chain too, so a non-conserving call fails fast rather than producing
+ * an unsatisfiable witness.
+ */
+export function buildTransferInput(
+  inNote: Note,
+  tree: MerkleTree,
+  out1: Note,
+  out2: Note,
+): TransferInput {
+  if (inNote.leafIndex === undefined) throw new Error("input note has no leafIndex (not observed in tree)");
+  if (out1.value + out2.value !== inNote.value) {
+    throw new Error("transfer is not value-conserving (out1 + out2 must equal the input note value)");
+  }
+  const p = tree.path(inNote.leafIndex);
+  return {
+    root: p.root.toString(),
+    nullifier: nullifier(inNote, inNote.leafIndex).toString(),
+    outCommitment1: commitment(out1).toString(),
+    outCommitment2: commitment(out2).toString(),
+    secret: inNote.secret.toString(),
+    value: inNote.value.toString(),
+    pathElements: p.pathElements.map((x) => x.toString()),
+    pathIndices: p.pathIndices.map((x) => x.toString()),
+    outSecret1: out1.secret.toString(),
+    outValue1: out1.value.toString(),
+    outSecret2: out2.secret.toString(),
+    outValue2: out2.value.toString(),
+  };
+}

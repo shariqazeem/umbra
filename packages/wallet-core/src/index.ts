@@ -9,4 +9,11 @@ export {
   type Note,
   type Wallet,
 } from "./wallet.js";
-export { buildShieldInput, buildWithdrawInput, type ShieldInput, type WithdrawInput } from "./witness.js";
+export {
+  buildShieldInput,
+  buildWithdrawInput,
+  buildTransferInput,
+  type ShieldInput,
+  type WithdrawInput,
+  type TransferInput,
+} from "./witness.js";
