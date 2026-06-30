@@ -5,9 +5,11 @@
  *
  * Run via: corepack pnpm exec tsx circuits/scripts/gen-fixtures.ts
  */
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Address } from "@stellar/stellar-sdk";
 import {
   MerkleTree,
   buildShieldInput,
@@ -23,7 +25,22 @@ const build = join(here, "..", "build");
 mkdirSync(build, { recursive: true });
 
 const AMOUNT = 1000n;
-const RECIPIENT = recipientField(0x1234_5678_9abc_def0_1122_3344n); // a bound recipient identity
+
+// C1 — the withdraw proof is bound to a concrete payout address. PAYEE is pinned to the
+// same value as contracts/umbra-pool/src/test.rs, so the regenerated fixture exercises the
+// on-chain `recipient == field(to)` check. A contract (`C…`) address is used so the custom
+// test SAC can credit it without a classic-account trustline (the binding logic is
+// identical for the `G…` payout addresses used in production). `field(addr)` mirrors the
+// contract's `address_to_field` and the wallet's `addressToField`: sha256 of the address
+// ScVal XDR with the top byte cleared (always a valid BLS12-381 Fr element).
+const PAYEE = "CCG4XWI5PQXJ22L6PCCFJU5YTPFDI7EBJKSVQ4WMI45DIHG4UPHOSIXG";
+function addressToField(addr: string): bigint {
+  const xdr = Address.fromString(addr).toScVal().toXDR("raw");
+  const h = createHash("sha256").update(xdr).digest();
+  h[0] = 0;
+  return BigInt("0x" + h.toString("hex"));
+}
+const RECIPIENT = recipientField(addressToField(PAYEE));
 
 // 1. Make a note and shield it (insert its commitment into a fresh tree at index 0).
 const note = makeNote(AMOUNT);

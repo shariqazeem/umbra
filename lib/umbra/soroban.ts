@@ -47,6 +47,32 @@ function proofScVal(sdk: Sdk, pf: Groth16ProofJson["proof"]): xdr.ScVal {
   ]);
 }
 
+function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
+  const bin = atob(b64);
+  const out = new Uint8Array(new ArrayBuffer(bin.length));
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/**
+ * Deterministic field encoding of a payout address — IDENTICAL to the contract's
+ * `address_to_field` (C1 binding): SHA-256 of the address ScVal XDR with the top byte
+ * cleared, so the result is always a valid BLS12-381 Fr element. The withdrawal proof
+ * binds its `recipient` public input to this value; on-chain the contract re-derives
+ * `field(to)` and rejects any mismatch, so a stolen/observed proof cannot be redirected
+ * to a different address.
+ */
+export async function addressToField(address: string): Promise<bigint> {
+  const sdk = await import("@stellar/stellar-sdk");
+  const b64 = new sdk.Address(address).toScVal().toXDR("base64");
+  const bytes = base64ToBytes(b64);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  digest[0] = 0; // mask the top byte → guaranteed < r
+  let acc = 0n;
+  for (const b of digest) acc = (acc << 8n) | BigInt(b);
+  return acc;
+}
+
 interface InvokeResult {
   hash: string;
   returnValue?: xdr.ScVal;

@@ -33,7 +33,7 @@ The deployer identity name is the only config knob. Override the default
 ## Run it
 
 ```bash
-bash infra/deploy/deploy-slice.sh        # build + deploy + init  -> writes deployment.json
+bash infra/deploy/deploy-slice.sh        # build + deploy (constructor-init) -> writes deployment.json
 bash infra/deploy/capture-demo-txs.sh    # 1 shield + 1 withdraw  -> appends tx hashes + URLs
 ```
 

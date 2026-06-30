@@ -95,10 +95,9 @@ fn setup<'a>() -> Ctx<'a> {
     let depositor = Address::generate(&env);
     token_admin.mint(&depositor, &AMOUNT);
 
-    // Pool.
-    let id = env.register(UmbraPool, ());
+    // Pool — initialized atomically via the constructor (H1: no separate init call).
+    let id = env.register(UmbraPool, (token_addr.clone(), shield.vk.clone(), withdraw.vk.clone()));
     let client = UmbraPoolClient::new(&env, &id);
-    client.init(&token_addr, &shield.vk, &withdraw.vk);
 
     // Shield: publics = [commitment, amount].
     let commitment = shield.publics.get_unchecked(0);
@@ -112,6 +111,15 @@ fn setup<'a>() -> Ctx<'a> {
 // withdraw publics = [root, nullifier, recipient, amount]
 fn parts(f: &Fixture) -> (BytesN<32>, BytesN<32>, BytesN<32>) {
     (f.publics.get_unchecked(0), f.publics.get_unchecked(1), f.publics.get_unchecked(2))
+}
+
+// The address the regenerated withdraw fixture is bound to (C1: recipient == field(to)).
+// A contract address is used so the custom test SAC can credit it without a classic-account
+// trustline; the C1 binding logic is identical for the G… payout addresses used in
+// production (where the pooled asset is native XLM and no trustline is required).
+const PAYEE: &str = "CCG4XWI5PQXJ22L6PCCFJU5YTPFDI7EBJKSVQ4WMI45DIHG4UPHOSIXG";
+fn payee(env: &Env) -> Address {
+    Address::from_string(&soroban_sdk::String::from_str(env, PAYEE))
 }
 
 /// The on-chain Poseidon MUST match the TS/circuit Poseidon, or contract roots will
@@ -140,7 +148,7 @@ fn happy_path_shield_then_withdraw() {
     }
     let ctx = setup();
     let (root, nullifier, recipient) = parts(&ctx.withdraw);
-    let to = Address::generate(&ctx.env);
+    let to = payee(&ctx.env);
 
     ctx.client
         .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &to);
@@ -148,6 +156,32 @@ fn happy_path_shield_then_withdraw() {
     assert_eq!(ctx.token.balance(&to), AMOUNT, "recipient received the funds");
     assert_eq!(ctx.token.balance(&ctx.client.address), 0, "pool drained");
     assert!(ctx.client.is_spent(&nullifier), "nullifier marked spent");
+}
+
+// C1 — a withdrawal proof bound to payee P cannot be redirected to another address
+// (front-running theft), and a failed redirect does not burn the nullifier.
+#[test]
+fn wrong_payee_rejected() {
+    if !fixtures_present() {
+        eprintln!("SKIP wrong_payee: proof fixtures absent");
+        return;
+    }
+    let ctx = setup();
+    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+
+    // Attacker observes the proof and tries to redirect the payout to themselves.
+    let attacker = Address::generate(&ctx.env);
+    let stolen = ctx
+        .client
+        .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &attacker);
+    assert!(stolen.is_err(), "a proof bound to payee P must not pay a different address");
+    assert!(!ctx.client.is_spent(&nullifier), "a rejected redirect must not burn the nullifier");
+
+    // The real (bound) payee can still withdraw.
+    let to = payee(&ctx.env);
+    ctx.client
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &to);
+    assert_eq!(ctx.token.balance(&to), AMOUNT, "the bound payee is paid");
 }
 
 #[test]
@@ -158,7 +192,7 @@ fn double_spend_rejected() {
     }
     let ctx = setup();
     let (root, nullifier, recipient) = parts(&ctx.withdraw);
-    let to = Address::generate(&ctx.env);
+    let to = payee(&ctx.env);
 
     ctx.client
         .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &to);
@@ -228,4 +262,52 @@ fn amount_mismatch_rejected() {
         .client
         .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &(AMOUNT + 1), &to);
     assert!(res.is_err(), "a proof for amount A must not authorize withdrawing A+1");
+}
+
+// M1 — non-positive amounts are rejected before any token movement.
+#[test]
+fn nonpositive_amount_rejected() {
+    if !fixtures_present() {
+        eprintln!("SKIP nonpositive_amount: proof fixtures absent");
+        return;
+    }
+    let ctx = setup();
+    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+    let to = Address::generate(&ctx.env);
+    let shield = load(&ctx.env, "shield");
+    let commitment = shield.publics.get_unchecked(0);
+    let depositor = Address::generate(&ctx.env);
+
+    for bad in [0i128, -1i128, -1000i128] {
+        assert!(
+            ctx.client.try_shield(&shield.proof, &commitment, &bad, &depositor).is_err(),
+            "shield must reject non-positive amount"
+        );
+        assert!(
+            ctx.client.try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &bad, &to).is_err(),
+            "withdraw must reject non-positive amount"
+        );
+    }
+}
+
+// M2 — a shield is rejected once the fixed-depth tree is full (depth 8 → 256 leaves).
+#[test]
+fn tree_full_rejected() {
+    if !fixtures_present() {
+        eprintln!("SKIP tree_full: proof fixtures absent");
+        return;
+    }
+    let ctx = setup();
+    let shield = load(&ctx.env, "shield");
+    let commitment = shield.publics.get_unchecked(0);
+    let depositor = Address::generate(&ctx.env);
+
+    // Force NextIndex to capacity (2^8 = 256) without needing 256 real proofs.
+    let id = ctx.client.address.clone();
+    ctx.env.as_contract(&id, || {
+        ctx.env.storage().instance().set(&crate::DataKey::NextIndex, &256u32);
+    });
+
+    let res = ctx.client.try_shield(&shield.proof, &commitment, &AMOUNT, &depositor);
+    assert!(res.is_err(), "shield must be rejected when the tree is full");
 }

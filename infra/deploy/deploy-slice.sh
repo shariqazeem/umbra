@@ -7,8 +7,8 @@
 #   1. Loud preflight: stellar-cli, wasm32 target, jq, network=testnet, deployer
 #      identity exists + friendbot-funded, circuit fixtures present. On ANY
 #      failure it prints the exact fix command and stops.
-#   2. Build + upload + deploy umbra_pool; deploy the native SAC demo asset;
-#      one-time init (token + verification keys).
+#   2. Build + upload wasm; deploy the native SAC demo asset; deploy umbra_pool with a
+#      constructor that binds the token + both verification keys atomically (H1).
 #   3. Write infra/deploy/deployment.json — the single machine-readable source of
 #      truth: {network, contractIds, wasmHash, deployTx, deployedAt, ...}.
 #
@@ -183,18 +183,7 @@ main() {
   [ -n "$WASM_HASH" ] || fail "wasm upload returned no hash (see stellar output above)" ""
   ok "wasm hash: $WASM_HASH"
 
-  step "deploy umbra_pool"
-  local dlog
-  dlog="$(mktemp)"
-  POOL="$(stellar contract deploy --wasm-hash "$WASM_HASH" \
-            --source-account "$UMBRA_DEPLOYER" --network "$UMBRA_NETWORK" 2>"$dlog")"
-  cat "$dlog" >&2
-  DEPLOY_TX="$(extract_txhash "$dlog" "$WASM_HASH")"
-  rm -f "$dlog"
-  [ -n "$POOL" ] || fail "deploy returned no contract id (see stellar output above)" ""
-  ok "pool contract: $POOL"
-  [ -n "$DEPLOY_TX" ] || warn "could not parse the deploy tx hash from CLI output (deployTx will be empty)"
-
+  # The token is a constructor argument, so it must exist BEFORE the pool is deployed.
   step "deploy native SAC token wrapper (demo asset)"
   UMBRA_TOKEN="${UMBRA_TOKEN:-}"
   if [ -z "$UMBRA_TOKEN" ]; then
@@ -203,19 +192,27 @@ main() {
                    || stellar contract id asset --asset native --network "$UMBRA_NETWORK" 2>/dev/null \
                    || echo "")"
   fi
-  ok "token: ${UMBRA_TOKEN:-<unset>}"
+  [ -n "$UMBRA_TOKEN" ] || fail "could not resolve the native SAC token contract id" ""
+  ok "token: $UMBRA_TOKEN"
 
-  step "init pool (bind token + verification keys) — one-time"
+  # H1: the pool is initialized ATOMICALLY by its constructor — the token + both
+  # verification keys are bound in the same transaction that creates the contract, so
+  # there is no separate init() call an attacker could front-run to bind a malicious key.
+  step "deploy umbra_pool (constructor binds token + verification keys — atomic, H1)"
   local vk_shield vk_withdraw
   vk_shield="$(jq -c '.vk' "$BUILD/shield_soroban.json")"
   vk_withdraw="$(jq -c '.vk' "$BUILD/withdraw_soroban.json")"
-  if stellar contract invoke --id "$POOL" \
-       --source-account "$UMBRA_DEPLOYER" --network "$UMBRA_NETWORK" \
-       -- init --token "$UMBRA_TOKEN" --vk_shield "$vk_shield" --vk_withdraw "$vk_withdraw" 2>&1; then
-    ok "init complete"
-  else
-    warn "init failed or pool was already initialized — continuing (idempotent)"
-  fi
+  local dlog
+  dlog="$(mktemp)"
+  POOL="$(stellar contract deploy --wasm-hash "$WASM_HASH" \
+            --source-account "$UMBRA_DEPLOYER" --network "$UMBRA_NETWORK" \
+            -- --token "$UMBRA_TOKEN" --vk_shield "$vk_shield" --vk_withdraw "$vk_withdraw" 2>"$dlog")"
+  cat "$dlog" >&2
+  DEPLOY_TX="$(extract_txhash "$dlog" "$WASM_HASH")"
+  rm -f "$dlog"
+  [ -n "$POOL" ] || fail "deploy returned no contract id (see stellar output above)" ""
+  ok "pool contract: $POOL (initialized via constructor)"
+  [ -n "$DEPLOY_TX" ] || warn "could not parse the deploy tx hash from CLI output (deployTx will be empty)"
 
   step "write deployment.json"
   local now

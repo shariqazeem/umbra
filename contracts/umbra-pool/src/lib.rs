@@ -35,6 +35,9 @@ pub enum Error {
     InvalidProof = 3,
     UnknownRoot = 4,
     NullifierAlreadySpent = 5,
+    InvalidAmount = 6,
+    TreeFull = 7,
+    RecipientMismatch = 8,
 }
 
 #[contracttype]
@@ -54,18 +57,22 @@ pub struct UmbraPool;
 
 #[contractimpl]
 impl UmbraPool {
-    /// One-time setup: pin both verifying keys and the pooled asset, and seed the
-    /// empty incremental tree (frontier = zero subtrees, root = the empty-tree root).
-    pub fn init(
+    /// Atomic constructor — runs exactly once, at deploy: pin both verifying keys and
+    /// the pooled asset, and seed the empty incremental tree (frontier = zero subtrees,
+    /// root = the empty-tree root).
+    ///
+    /// H1: this is a `__constructor` rather than a separate `init` call, so there is no
+    /// post-deploy window in which an attacker could front-run initialization and bind a
+    /// malicious verifying key (which would accept forged proofs and drain the pool).
+    /// Verifying keys and the asset are fixed in the same transaction that creates the
+    /// contract, and cannot be changed afterward.
+    pub fn __constructor(
         env: Env,
         token: Address,
         vk_shield: VerifyingKey,
         vk_withdraw: VerifyingKey,
-    ) -> Result<(), Error> {
+    ) {
         let s = env.storage().instance();
-        if s.has(&DataKey::VkShield) {
-            return Err(Error::AlreadyInitialized);
-        }
         s.set(&DataKey::VkShield, &vk_shield);
         s.set(&DataKey::VkWithdraw, &vk_withdraw);
         s.set(&DataKey::Token, &token);
@@ -81,7 +88,6 @@ impl UmbraPool {
         // The empty-tree root is a known root.
         let empty_root = BytesN::from_array(&env, &ZERO_HASHES[MERKLE_DEPTH]);
         s.set(&DataKey::Roots, &vec![&env, empty_root]);
-        Ok(())
     }
 
     /// Shield `amount` of the pooled asset under `commitment`.
@@ -98,6 +104,17 @@ impl UmbraPool {
     ) -> Result<u32, Error> {
         let s = env.storage().instance();
         let vk: VerifyingKey = s.get(&DataKey::VkShield).ok_or(Error::NotInitialized)?;
+
+        // M1: reject non-positive amounts (a negative i128 would misbehave in transfer).
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+        // M2: reject once the fixed-depth tree is full (the frontier math is only valid
+        // for leaf indices in [0, 2^depth)).
+        let next: u32 = s.get(&DataKey::NextIndex).unwrap_or(0);
+        if next >= (1u32 << (MERKLE_DEPTH as u32)) {
+            return Err(Error::TreeFull);
+        }
 
         let public_inputs = vec![&env, commitment.clone(), amount_to_fr_bytes(&env, amount)];
         if !verify_groth16(&env, &vk, &proof, &public_inputs) {
@@ -136,15 +153,27 @@ impl UmbraPool {
         let s = env.storage().instance();
         let vk: VerifyingKey = s.get(&DataKey::VkWithdraw).ok_or(Error::NotInitialized)?;
 
+        // M1: reject non-positive amounts.
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
         let public_inputs = vec![
             &env,
             root.clone(),
             nullifier.clone(),
-            recipient,
+            recipient.clone(),
             amount_to_fr_bytes(&env, amount),
         ];
         if !verify_groth16(&env, &vk, &proof, &public_inputs) {
             return Err(Error::InvalidProof);
+        }
+
+        // C1: bind the proof to the payee. The proof's `recipient` public input must
+        // equal field(to), so a stolen/observed proof cannot be redirected to another
+        // address (front-running theft).
+        if recipient != Self::address_to_field(&env, &to) {
+            return Err(Error::RecipientMismatch);
         }
 
         // Root must be one the contract actually produced.
@@ -189,6 +218,17 @@ impl UmbraPool {
     fn is_known_root(env: &Env, root: &BytesN<32>) -> bool {
         let roots: Vec<BytesN<32>> = env.storage().instance().get(&DataKey::Roots).unwrap();
         roots.iter().any(|r| &r == root)
+    }
+
+    /// Deterministic field encoding of a payout address: SHA-256 of its ScVal XDR with
+    /// the top byte cleared (so it is always a valid BLS12-381 Fr element). Computed
+    /// identically in the wallet (TS), so a withdrawal proof can bind to its payee.
+    fn address_to_field(env: &Env, addr: &Address) -> BytesN<32> {
+        use soroban_sdk::xdr::ToXdr;
+        let h = env.crypto().sha256(&addr.clone().to_xdr(env)).to_bytes();
+        let mut a = h.to_array();
+        a[0] = 0;
+        BytesN::from_array(env, &a)
     }
 
     /// Incremental Poseidon insert (Tornado-style). Returns the leaf index used.

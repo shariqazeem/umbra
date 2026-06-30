@@ -22,7 +22,7 @@ import { SuccessMark } from "@/components/umbra/success-mark";
 import { useProver } from "@/hooks/use-prover";
 import { useWallet } from "@/hooks/use-wallet";
 import { noteCommitment, walletStore, type WalletNote } from "@/lib/umbra/wallet";
-import { submitShield, submitWithdraw } from "@/lib/umbra/soroban";
+import { addressToField, submitShield, submitWithdraw } from "@/lib/umbra/soroban";
 import { createPaymentLink, linkUrl, type CreatedLink } from "@/lib/umbra/payment-link";
 import { isChainConfigured } from "@/lib/umbra/config";
 import { auditStore } from "@/lib/umbra/audit-store";
@@ -170,16 +170,24 @@ export default function WalletPage() {
       if (!note) throw new Error("No spendable note found after syncing");
       setLastAmount(note.value.toString());
       const cm = noteCommitment({ secret: note.secret, value: note.value });
-      const input = walletStore.withdrawInput(cm, BigInt("12345"));
+
+      // C1 — bind the proof to its payee BEFORE proving. The withdrawal proof's
+      // `recipient` public input is field(payout); on-chain the contract re-derives
+      // field(to) and rejects any mismatch, so a stolen/observed proof can never be
+      // redirected to a different address. (Demo-only path with no payout falls back to a
+      // placeholder field value — it is never submitted on-chain.)
+      const payout = resolvePayout();
+      if (isChainConfigured() && !payout) throw new Error("Enter a destination Stellar address");
+      const recipient = payout ? await addressToField(payout) : BigInt("12345");
+
+      const input = walletStore.withdrawInput(cm, recipient);
       if (!input) throw new Error("couldn't build the proof for this note");
       const proof = await prover.run("withdraw", input as unknown as Record<string, unknown>);
       let txHash: string | null = null;
-      let payoutAddr: string | null = null;
+      const payoutAddr: string | null = payout;
       if (isChainConfigured()) {
         if (!wallet.signer) throw new Error("Connect your wallet to move funds on-chain");
-        const payout = resolvePayout();
         if (!payout) throw new Error("Enter a destination Stellar address");
-        payoutAddr = payout;
         setLastTo(payout);
         setTxStep("signing");
         const { hash } = await submitWithdraw(
