@@ -12,8 +12,10 @@ export interface NetworkContracts {
   explorer: string;
 }
 
-/** The network the app is currently running against. */
-export const ACTIVE_NETWORK: StellarNetwork = "testnet";
+/** The network the app runs against — env-driven, defaults to testnet. */
+const ENV_NETWORK: StellarNetwork =
+  process.env.NEXT_PUBLIC_UMBRA_NETWORK === "mainnet" ? "mainnet" : "testnet";
+export const ACTIVE_NETWORK: StellarNetwork = ENV_NETWORK;
 
 export const NETWORKS: Record<StellarNetwork, NetworkContracts | null> = {
   testnet: {
@@ -22,18 +24,57 @@ export const NETWORKS: Record<StellarNetwork, NetworkContracts | null> = {
     networkPassphrase: "Test SDF Network ; September 2015",
     explorer: "https://stellar.expert/explorer/testnet",
   },
-  // Not deployed. Mainnet stays null until the readiness checklist is complete.
-  mainnet: null,
+  // Populated only when the app is explicitly pointed at mainnet. Money paths stay gated
+  // behind the canary flag + a hard per-deposit cap (below) and the honest, never-"safe"
+  // labeling in MainnetGate — pointing at mainnet alone moves nothing.
+  mainnet:
+    ENV_NETWORK === "mainnet"
+      ? {
+          pool: process.env.NEXT_PUBLIC_UMBRA_POOL_CONTRACT ?? "",
+          rpcUrl: process.env.NEXT_PUBLIC_UMBRA_RPC_URL ?? "",
+          networkPassphrase: "Public Global Stellar Network ; September 2015",
+          explorer: "https://stellar.expert/explorer/public",
+        }
+      : null,
 };
 
-/** Feature flags — DEFAULT TO SAFE. Mainnet money paths are off. */
+// Hard per-deposit cap for the canary: XLM (env) → stroops. Default 0 (off). Set
+// NEXT_PUBLIC_UMBRA_MAX_DEPOSIT_XLM only when arming the canary, and keep it small.
+const CANARY_CAP_XLM = Number(process.env.NEXT_PUBLIC_UMBRA_MAX_DEPOSIT_XLM ?? "0");
+const STROOPS_PER_XLM = 10_000_000n;
+
+/** Feature flags — DEFAULT TO SAFE. Mainnet money paths are off unless explicitly armed. */
 export const FLAGS = {
-  ENABLE_MAINNET_CANARY: false,
+  // The experimental, self-reviewed capped canary. Env-armed; never implies "safe".
+  ENABLE_MAINNET_CANARY: process.env.NEXT_PUBLIC_UMBRA_ENABLE_CANARY === "true",
+  // The full production bar (all SECURITY_BLOCKERS cleared). Still aspirational.
   ENABLE_MAINNET_DEPOSITS: false,
-  /** Hard cap (stroops) if a capped canary is ever enabled. 0 = no deposits. */
-  MAX_MAINNET_DEPOSIT: 0n,
+  /** Hard per-deposit cap (stroops). 0 = no deposits. */
+  MAX_MAINNET_DEPOSIT:
+    Number.isFinite(CANARY_CAP_XLM) && CANARY_CAP_XLM > 0
+      ? BigInt(Math.floor(CANARY_CAP_XLM)) * STROOPS_PER_XLM
+      : 0n,
   REQUIRE_SECURITY_ACK: true,
 } as const;
+
+/**
+ * The experimental, self-reviewed capped canary is active. This is deliberately NOT the
+ * production safety bar (`isMainnetMoneySafe`) — it does not require the audit/ceremony
+ * blockers, because the canary's whole point is small, capped, honest real-money exposure
+ * AHEAD of those. The UI must always label it experimental and never "safe"/"audited".
+ */
+export function isCanaryActive(): boolean {
+  return (
+    ACTIVE_NETWORK === "mainnet" &&
+    FLAGS.ENABLE_MAINNET_CANARY &&
+    FLAGS.MAX_MAINNET_DEPOSIT > 0n
+  );
+}
+
+/** Per-deposit cap in stroops (0 = deposits disabled). Only meaningful on mainnet. */
+export function maxDepositStroops(): bigint {
+  return ACTIVE_NETWORK === "mainnet" ? FLAGS.MAX_MAINNET_DEPOSIT : 0n;
+}
 
 /** Security blockers that MUST all be true before mainnet money paths may open. */
 export const SECURITY_BLOCKERS = {

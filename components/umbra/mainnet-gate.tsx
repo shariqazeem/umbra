@@ -1,7 +1,7 @@
 "use client";
 
 import { ShieldAlert, ShieldCheck } from "lucide-react";
-import { ACTIVE_NETWORK, isMainnetMoneySafe } from "@/lib/umbra/network";
+import { ACTIVE_NETWORK, FLAGS, isCanaryActive } from "@/lib/umbra/network";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,23 +24,26 @@ export function MainnetGate({ className }: { className?: string }) {
     );
   }
 
-  const safe = isMainnetMoneySafe();
+  const canary = isCanaryActive();
+  const capXlm = canary ? Number(FLAGS.MAX_MAINNET_DEPOSIT / 10_000_000n) : 0;
   return (
     <div
       className={cn(
         "flex items-start gap-3 rounded-xl border px-4 py-3",
-        safe ? "border-amber-500/40 bg-amber-500/[0.06]" : "border-destructive/40 bg-destructive/[0.06]",
+        canary ? "border-amber-500/40 bg-amber-500/[0.06]" : "border-destructive/40 bg-destructive/[0.06]",
         className,
       )}
     >
-      <ShieldAlert className={cn("mt-0.5 h-4 w-4 shrink-0", safe ? "text-amber-500" : "text-destructive")} />
+      <ShieldAlert className={cn("mt-0.5 h-4 w-4 shrink-0", canary ? "text-amber-500" : "text-destructive")} />
       <div>
         <p className="text-sm font-medium text-foreground">
-          {safe ? "Mainnet — capped canary (not for production)" : "Mainnet money paths are disabled"}
+          {canary
+            ? `Mainnet — experimental canary, capped at ${capXlm} XLM (self-reviewed, NOT audited)`
+            : "Mainnet money paths are disabled"}
         </p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-          {safe
-            ? "Deposits are hard-capped and experimental. Not safe for real value until the readiness checklist is complete."
+          {canary
+            ? "Real funds at risk. Self-reviewed (C1/H1/M1/M2), not independently audited, single-contributor trusted setup. Deposits are hard-capped per the figure above — deposit only what you can afford to lose."
             : "Security blockers are unresolved (audit, trusted setup). Deposits and withdrawals are disabled — not safe for real assets."}
         </p>
       </div>
