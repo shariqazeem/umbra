@@ -2,20 +2,20 @@
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "contractIds": {
-    "pool": "CBGB5DAYD7RYIHDK2T6DE364VD3RJZGG5AUEQETW6LO3ZI4A5L3LSDV7",
+    "pool": "CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX",
     "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
   },
-  "wasmHash": "6cc6890a8bad5ce52e2b65df9e87060b19215a2cf9b24ebe4c16d33e7cbce35f",
-  "deployTx": "d4f96c053724ee303e73e74104891e4dc74302d27a3fe6c0f8b6ef362f82d660",
-  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/d4f96c053724ee303e73e74104891e4dc74302d27a3fe6c0f8b6ef362f82d660",
-  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CBGB5DAYD7RYIHDK2T6DE364VD3RJZGG5AUEQETW6LO3ZI4A5L3LSDV7",
+  "wasmHash": "fe2f637953950baf357ce34b8fc9462b91def1e7460d1213663c2234edfc778c",
+  "deployTx": "0030b4a7e78bc91edc5606ade7ef9cf242eafd8c62cf08b6914d253db111904a",
+  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/0030b4a7e78bc91edc5606ade7ef9cf242eafd8c62cf08b6914d253db111904a",
+  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX",
   "deployer": "GAHR34WCIIS4TQDGC362ETJSHXNLE6AF6ZDK3EPONNPFRIEXLWNOHYXQ",
   "deployerId": "umbra-deployer",
   "explorerBase": "https://stellar.expert/explorer/testnet",
-  "deployedAt": "2026-06-21T11:53:10Z",
-  "shieldTx": "9fb4dc1579df048b4a5c13b90e34f649c6a59f22e530a33192fdfdfcce7f8efc",
-  "withdrawTx": "aa5cf13217212290728c9c264620003309664b1d8a0db8e816a1b59f4107c676",
-  "shieldExplorerUrl": "https://stellar.expert/explorer/testnet/tx/9fb4dc1579df048b4a5c13b90e34f649c6a59f22e530a33192fdfdfcce7f8efc",
-  "withdrawExplorerUrl": "https://stellar.expert/explorer/testnet/tx/aa5cf13217212290728c9c264620003309664b1d8a0db8e816a1b59f4107c676",
-  "demoCapturedAt": "2026-06-21T11:55:20Z"
+  "deployedAt": "2026-06-30T20:23:59Z",
+  "shieldTx": "ef25404c5fadf4b4ab4c071bbea608811bf1dcad13535e0d47893f1f7f742597",
+  "withdrawTx": "a37f97c22147998eaddf1cff1a98b1ba6318361e663072b2d1a41805a15a4e73",
+  "shieldExplorerUrl": "https://stellar.expert/explorer/testnet/tx/ef25404c5fadf4b4ab4c071bbea608811bf1dcad13535e0d47893f1f7f742597",
+  "withdrawExplorerUrl": "https://stellar.expert/explorer/testnet/tx/a37f97c22147998eaddf1cff1a98b1ba6318361e663072b2d1a41805a15a4e73",
+  "demoCapturedAt": "2026-06-30T20:26:09Z"
 }

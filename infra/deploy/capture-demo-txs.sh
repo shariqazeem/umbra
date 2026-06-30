@@ -122,6 +122,12 @@ main() {
   fi
 
   local depositor="$DEPLOYER_ADDR"
+  # C1: the withdraw proof is bound to its payout address — `recipient == field(to)`. The
+  # committed fixture is bound to this payee (see circuits/scripts/gen-fixtures.ts and
+  # contracts/umbra-pool/src/test.rs), so the demo withdrawal MUST pay exactly this address
+  # or the contract rejects it (Error::RecipientMismatch). It is a contract address; the
+  # native SAC credits it without a trustline.
+  local payee="CCG4XWI5PQXJ22L6PCCFJU5YTPFDI7EBJKSVQ4WMI45DIHG4UPHOSIXG"
 
   step "shield 1000 (real private deposit)"
   local shield_proof commitment
@@ -134,7 +140,7 @@ main() {
   SHIELD_TX="${LAST_TX_HASH:-}"
   ok "shield tx: ${SHIELD_TX:-<no hash parsed>}"
 
-  step "withdraw 1000 -> depositor (real private withdrawal, demo payout)"
+  step "withdraw 1000 -> bound payee (real private withdrawal; proof bound to the payout address — C1)"
   local w_proof root nullifier recipient
   w_proof="$(jq -c '.proof' "$BUILD/withdraw_soroban.json")"
   root="$(jq -r '.publicInputs[0]' "$BUILD/withdraw_soroban.json")"
@@ -142,7 +148,7 @@ main() {
   recipient="$(jq -r '.publicInputs[2]' "$BUILD/withdraw_soroban.json")"
   invoke_pool -- withdraw \
     --proof "$w_proof" --root "$root" --nullifier "$nullifier" \
-    --recipient "$recipient" --amount 1000 --to "$depositor" \
+    --recipient "$recipient" --amount 1000 --to "$payee" \
     || fail "withdraw invocation failed (see stellar output above)" ""
   WITHDRAW_TX="${LAST_TX_HASH:-}"
   ok "withdraw tx: ${WITHDRAW_TX:-<no hash parsed>}"
