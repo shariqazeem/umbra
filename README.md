@@ -25,9 +25,11 @@ payment links, **selective disclosure**, and **wallet-linked cross-device recove
 
 ## Live on Stellar testnet (real, verifiable)
 
-- **Pool contract:** [`CBGB5DAY…SDV7`](https://stellar.expert/explorer/testnet/contract/CBGB5DAYD7RYIHDK2T6DE364VD3RJZGG5AUEQETW6LO3ZI4A5L3LSDV7)
-- **Real shield deposit:** [`9fb4dc15…`](https://stellar.expert/explorer/testnet/tx/9fb4dc1579df048b4a5c13b90e34f649c6a59f22e530a33192fdfdfcce7f8efc)
-- **Withdraw where the proof was verified on-chain:** [`aa5cf132…`](https://stellar.expert/explorer/testnet/tx/aa5cf13217212290728c9c264620003309664b1d8a0db8e816a1b59f4107c676)
+- **Pool contract (hardened — C1/H1/M1/M2):** [`CCBNNCXZ…JHX`](https://stellar.expert/explorer/testnet/contract/CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX)
+- **Real shield deposit:** [`ef25404c…`](https://stellar.expert/explorer/testnet/tx/ef25404c5fadf4b4ab4c071bbea608811bf1dcad13535e0d47893f1f7f742597)
+- **Withdraw where the proof was verified on-chain and bound to the payout address (C1):** [`a37f97c2…`](https://stellar.expert/explorer/testnet/tx/a37f97c22147998eaddf1cff1a98b1ba6318361e663072b2d1a41805a15a4e73)
+- **C1 enforced live:** the same proof aimed at a different address is rejected on-chain
+  (`Error(Contract, #8) RecipientMismatch`) — a stolen proof can't be redirected.
 - The **same flow driven entirely from the browser** (no terminal): see [`docs/BROWSER_E2E.md`](docs/BROWSER_E2E.md).
 
 On-chain, the deposit and the withdrawal **share no linking data** — that is the

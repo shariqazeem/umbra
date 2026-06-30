@@ -28,7 +28,7 @@ links, selective disclosure, and **wallet-linked cross-device recovery**.
 | Typecheck | `corepack pnpm typecheck` (`tsc --noEmit`) | ✅ clean |
 | Build | `corepack pnpm build` (`next build`) | ✅ 15/15 routes |
 | Unit/component tests | `corepack pnpm exec vitest run` | ✅ 25/25 (7 files) |
-| Contract tests | `cd contracts && cargo test -p umbra-pool` | ✅ 6/6 (real proofs vs real BLS host) |
+| Contract tests | `cd contracts && cargo test -p umbra-pool` | ✅ 9/9 (real proofs vs real BLS host; C1/H1/M1/M2) |
 | Route smoke | curl `/ /wallet /proof /mainnet /audit /build /apps /links /donate /invoice` | ✅ all 200 |
 | Proof explorer links | Horizon `successful` for the 4 `/proof` txs | ✅ 4/4 `successful=true` |
 | **Live shield** | browser flow, testnet key | ✅ confirmed on Horizon |
@@ -70,7 +70,10 @@ No other code changes; all existing flows preserved.
 ## Known limitations (honest)
 
 - **Link privacy, not confidential amounts.** Amounts are public on-chain.
-- **Unaudited.** Contract, circuits, and verifier path have not been audited.
+- **Self-reviewed, not externally audited.** A self-review hardening pass fixed the
+  exploitable money-path issues (C1/H1/M1/M2 — `docs/SECURITY_REVIEW.md` §0), live on
+  testnet and tested; the circuits + verifier path + recovery still need an independent
+  audit before unbounded mainnet use.
 - **Single-contributor trusted setup** (Groth16) — demo-grade.
 - **Testnet only.** Mainnet money paths are hard-disabled and security-gated (`/mainnet`).
 - **Merkle depth 8** → 256 notes per pool.
@@ -78,8 +81,8 @@ No other code changes; all existing flows preserved.
   roadmap; see `docs/RELAYER.md`).
 - **Pre-deterministic notes** (shielded before the recovery feature, with random secrets)
   are not cross-device recoverable; new notes are.
-- `/proof` shows the **canonical demo pool** (`CBGB5DAY…`, with confirmed txs); the
-  running app uses the pool in `.env.local` — both real testnet.
+- `/proof` and the running app now share **one hardened pool** (`CCBNNCXZ…`, C1/H1/M1/M2,
+  in `deployment.json` + `.env.local`), with fresh confirmed shield/withdraw txs — real testnet.
 
 ## Final demo path (≈2.5 min)
 

@@ -265,11 +265,11 @@ two workspace packages via `workspace:*`, so it ships once those are published/b
 
 | Pool | Contract id | Notes |
 | --- | --- | --- |
-| Live wallet pool | `CBT2YYN4…TTNW3` | current `.env.local`; what the running app uses |
-| Canonical demo (in `deployment.json`, `/proof`) | `CBGB5DAY…SDV7` | shield `9fb4dc15…`, withdraw `aa5cf132…` |
-| Browser-E2E | `CDY54W6J…2KCQ` | browser-driven shield/withdraw |
+| **Hardened pool** (C1/H1/M1/M2) | `CCBNNCXZ…JHX` | current `.env.local` + `deployment.json` + `/proof`; wasm `fe2f6379…`; shield `ef25404c…`, withdraw `a37f97c2…` (bound to payee — C1) |
+| _superseded_ — canonical demo | `CBGB5DAY…SDV7` | prior (pre-hardening) pool; its txs remain on-chain but are no longer referenced |
+| _superseded_ — live wallet pool | `CBT2YYN4…TTNW3` | prior `.env.local` pool |
 
-Token: native SAC `CDLZFC3S…`. All txs confirmed on Horizon. Tests: `umbra-pool` 5/5
+Token: native SAC `CDLZFC3S…`. All txs confirmed on Horizon. Tests: `umbra-pool` 9/9
 (real proofs vs the real BLS host), `crypto-bls` 13/13, app `vitest` 18/18, `tsc`
 clean, `next build` 14/14.
 

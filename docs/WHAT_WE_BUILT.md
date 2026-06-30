@@ -70,9 +70,9 @@ the canonical record is `infra/deploy/deployment.json`.
 | Item | Value | Verified |
 | --- | --- | --- |
 | Network | testnet | — |
-| Pool contract | `CBGB5DAYD7RYIHDK2T6DE364VD3RJZGG5AUEQETW6LO3ZI4A5L3LSDV7` | `api.stellar.expert/.../contract/<pool>` → HTTP 200, exists, wasm `6cc6890a…` |
+| Pool contract (hardened — C1/H1/M1/M2) | `CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX` | on-chain, initialized via constructor (H1); wasm `fe2f6379…` |
 | Native SAC token | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | deployed as demo asset |
-| Deploy tx | `d4f96c05…f82d660` | confirmed |
+| Deploy tx | `0030b4a7…11904a` | confirmed |
 | **Shield deposit tx** | `9fb4dc15…ce7f8efc` | Horizon → `successful: true`, ledger 3205871 |
 | **Withdraw tx** | `aa5cf132…107c676` | Horizon → `successful: true`, ledger 3205873 |
 | Deployer | `GAHR34WC…HYXQ` | friendbot-funded |

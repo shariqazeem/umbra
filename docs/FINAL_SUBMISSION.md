@@ -31,17 +31,19 @@ they are **not** filled with fake links._
 
 | Item | Id / hash |
 | --- | --- |
-| Live app pool (`.env.local`) | `CBT2YYN4YCBOB7HD6SYV3G33LA5CY4GHK5AWDEU54B53MGM6D2RTTNW3` |
-| Canonical demo pool (`/proof`, deployment.json) | `CBGB5DAYD7RYIHDK2T6DE364VD3RJZGG5AUEQETW6LO3ZI4A5L3LSDV7` |
+| Live pool — **hardened** (C1/H1/M1/M2), `.env.local` + `/proof` | `CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX` |
+| Pool wasm hash | `fe2f637953950baf357ce34b8fc9462b91def1e7460d1213663c2234edfc778c` |
 | Asset (native SAC) | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
 | Deployer (public) | `GAHR34WCIIS4TQDGC362ETJSHXNLE6AF6ZDK3EPONNPFRIEXLWNOHYXQ` |
 
-Real, Horizon-confirmed transactions (all `successful=true`):
+Real, Horizon-confirmed transactions on the hardened pool (all `successful=true`):
 
-- Shield deposit — https://stellar.expert/explorer/testnet/tx/9fb4dc1579df048b4a5c13b90e34f649c6a59f22e530a33192fdfdfcce7f8efc
-- Withdraw (proof verified on-chain) — https://stellar.expert/explorer/testnet/tx/aa5cf13217212290728c9c264620003309664b1d8a0db8e816a1b59f4107c676
-- Browser-driven shield — https://stellar.expert/explorer/testnet/tx/4798875e7835b2029bc49ced7b31e573b6c15a866a5a5f7efdcbd6be1e0c0846
-- Browser-driven withdraw — https://stellar.expert/explorer/testnet/tx/0cf5517edac205b696ba0661b38f873db14ce63f831b8fb282bcbce2f6e63069
+- Shield deposit — https://stellar.expert/explorer/testnet/tx/ef25404c5fadf4b4ab4c071bbea608811bf1dcad13535e0d47893f1f7f742597
+- Withdraw — proof verified on-chain **and bound to the payout address (C1)** — https://stellar.expert/explorer/testnet/tx/a37f97c22147998eaddf1cff1a98b1ba6318361e663072b2d1a41805a15a4e73
+- **C1 enforced live:** resubmitting that same proof with a different `--to` is rejected
+  on-chain with `Error(Contract, #8) RecipientMismatch` (fails at simulation — a stolen
+  proof cannot be redirected). H1: the pool was initialized **by its constructor**, not a
+  separate `init()` call.
 
 ## Test results (this RC)
 
@@ -50,7 +52,7 @@ Real, Horizon-confirmed transactions (all `successful=true`):
 | `tsc --noEmit` | ✅ clean |
 | `next build` | ✅ 15/15 routes |
 | `vitest` | ✅ 25/25 (7 files) |
-| `cargo test -p umbra-pool` | ✅ 6/6 (real proofs vs real BLS host) |
+| `cargo test -p umbra-pool` | ✅ 9/9 (real proofs vs real BLS host; incl. C1/M1/M2 guards) |
 | Route smoke (localhost, 10 routes) | ✅ all 200 |
 | `/proof` explorer links | ✅ 4/4 `successful=true` |
 | Live shield · send · recovery | ✅ all confirmed (recovered 16 XLM on a fresh device) |
@@ -65,7 +67,7 @@ corepack pnpm start            # → http://localhost:3000
 ## Production deploy (what's required)
 
 - **Required env vars** (public; see `.env.example`):
-  - `NEXT_PUBLIC_UMBRA_POOL_CONTRACT` — a deployed testnet UmbraPool (e.g. `CBT2YYN4…`).
+  - `NEXT_PUBLIC_UMBRA_POOL_CONTRACT` — a deployed testnet UmbraPool (e.g. `CCBNNCXZ…`).
   - `NEXT_PUBLIC_UMBRA_RPC_URL` (default `https://soroban-testnet.stellar.org`).
   - `NEXT_PUBLIC_UMBRA_NETWORK_PASSPHRASE` (default `Test SDF Network ; September 2015`).
   - `NEXT_PUBLIC_UMBRA_PROOF_MODE=live`.
@@ -90,8 +92,11 @@ corepack pnpm start            # → http://localhost:3000
 ## Known limitations (honest)
 
 - **Link privacy, not confidential amounts** — amounts are public on-chain.
-- **Unaudited.** Single-contributor trusted setup (Groth16). Testnet only; mainnet
-  hard-disabled and security-gated (`/mainnet`).
+- **Self-reviewed, not externally audited.** A focused adversarial self-review fixed the
+  exploitable money-path issues — C1 (withdrawals bound to the payout address), H1 (atomic
+  constructor init), M1/M2 (amount + tree-full guards), all live on testnet and tested
+  (`docs/SECURITY_REVIEW.md` §0). This is **not** a substitute for an independent audit,
+  which remains the top mainnet blocker. Single-contributor trusted setup (Groth16).
 - Merkle depth 8 (256 notes/pool). Fee-payer privacy leak (relayer is roadmap).
 - Pre-recovery (random-secret) notes aren't cross-device recoverable; new notes are.
 - See `docs/SECURITY_REVIEW.md` (incl. the nullifier-TTL/double-spend caveat) and

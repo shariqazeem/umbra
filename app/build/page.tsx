@@ -16,7 +16,7 @@ import {
 import { Button, Card, Eyebrow, Pill, Shell } from "@/components/umbra/ui";
 import { CopyButton } from "@/components/copy-button";
 
-const POOL = "CBGB5DAYD7RYIHDK2T6DE364VD3RJZGG5AUEQETW6LO3ZI4A5L3LSDV7";
+const POOL = "CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX";
 const NETWORK = "Test SDF Network ; September 2015";
 const RPC = "https://soroban-testnet.stellar.org";
 const EXPLORER = `https://stellar.expert/explorer/testnet/contract/${POOL}`;
