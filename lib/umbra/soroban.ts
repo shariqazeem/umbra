@@ -204,7 +204,7 @@ export async function submitTransfer(
   },
   signer: Signer,
   onStatus?: (p: SubmitPhase) => void,
-): Promise<{ hash: string }> {
+): Promise<{ hash: string; leafIndex: number }> {
   const sdk = await import("@stellar/stellar-sdk");
   const res = await invoke(
     sdk,
@@ -218,5 +218,8 @@ export async function submitTransfer(
     signer,
     onStatus,
   );
-  return { hash: res.hash };
+  // transfer() returns the output commitment's on-chain leaf index — the recipient needs
+  // it to build the Merkle path when they later spend the received note.
+  const leafIndex = res.returnValue != null ? Number(sdk.scValToNative(res.returnValue)) : 0;
+  return { hash: res.hash, leafIndex };
 }

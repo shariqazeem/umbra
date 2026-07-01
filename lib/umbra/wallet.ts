@@ -10,12 +10,14 @@
 import {
   MerkleTree,
   buildShieldInput,
+  buildTransferInput,
   buildWithdrawInput,
   commitment as noteCommitment,
   makeNote,
   recipientField,
   type Note,
   type ShieldInput,
+  type TransferInput,
   type WithdrawInput,
 } from "@umbra/wallet-core";
 import { deriveNoteSecret } from "./note-derivation";
@@ -197,6 +199,33 @@ class WalletStore {
     const note = this.notes.find((n) => noteCommitment(toNote(n)) === commitment);
     if (!note || note.leafIndex === null) return null;
     return buildWithdrawInput(toNote(note), this.tree(), recipientField(recipientId));
+  }
+
+  /**
+   * Build the witness for a confidential "private send": spend the note under
+   * `inCommitment` and re-note its full (hidden) value to `out` — the recipient's fresh
+   * output note. 1-in/1-out, so the output carries the same value as the input.
+   */
+  transferInput(inCommitment: bigint, out: { secret: bigint; value: bigint }): TransferInput | null {
+    const note = this.notes.find((n) => noteCommitment(toNote(n)) === inCommitment);
+    if (!note || note.leafIndex === null) return null;
+    return buildTransferInput(toNote(note), this.tree(), { secret: out.secret, value: out.value });
+  }
+
+  /** A fresh random note secret — used for the recipient's output note in a private send. */
+  freshSecret(value: bigint): bigint {
+    return makeNote(value).secret;
+  }
+
+  /**
+   * Import a note received via a private-send claim (secret + value + on-chain leaf
+   * index). After a chain sync the note is spendable. Idempotent.
+   */
+  importNote(secret: bigint, value: bigint, leafIndex: number): boolean {
+    if (this.notes.some((n) => n.secret === secret && n.value === value)) return false;
+    this.notes.push({ secret, value, leafIndex, spent: false, nonce: undefined });
+    this.commit();
+    return true;
   }
 }
 

@@ -22,8 +22,9 @@ import { SuccessMark } from "@/components/umbra/success-mark";
 import { useProver } from "@/hooks/use-prover";
 import { useWallet } from "@/hooks/use-wallet";
 import { noteCommitment, walletStore, type WalletNote } from "@/lib/umbra/wallet";
-import { addressToField, submitShield, submitWithdraw } from "@/lib/umbra/soroban";
+import { addressToField, submitShield, submitTransfer, submitWithdraw } from "@/lib/umbra/soroban";
 import { createPaymentLink, linkUrl, type CreatedLink } from "@/lib/umbra/payment-link";
+import { encodeClaim, claimUrl } from "@/lib/umbra/private-send";
 import { isChainConfigured } from "@/lib/umbra/config";
 import { auditStore } from "@/lib/umbra/audit-store";
 import { DisclosureKit } from "@/components/umbra/disclosure-kit";
@@ -39,7 +40,7 @@ const ASSET = "XLM";
 const EXPLORER_TX = (h: string) => `https://stellar.expert/explorer/testnet/tx/${h}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-type View = "home" | "shield" | "send" | "unshield" | "paylink";
+type View = "home" | "shield" | "send" | "transfer" | "unshield" | "paylink";
 type Phase = "form" | "working" | "done" | "error";
 
 export default function WalletPage() {
@@ -61,6 +62,7 @@ export default function WalletPage() {
   const [lastAmount, setLastAmount] = useState("0");
   const [lastTo, setLastTo] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [claim, setClaim] = useState<string | null>(null);
   const syncedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -233,6 +235,75 @@ export default function WalletPage() {
   const onSend = () => doWithdraw(() => to.trim() || null, "send");
   const onUnshield = () => doWithdraw(() => to.trim() || wallet.address, "withdraw");
 
+  // Confidential transfer ("private send"): spend a shielded note and re-note its full,
+  // HIDDEN value to the recipient. Produces a bearer claim they import — the amount never
+  // appears on-chain (public inputs are only root, nullifier, outCommitment).
+  async function doTransfer() {
+    if (!walletStore.spendable()[0]) {
+      setMsg("No private balance yet — shield some funds first.");
+      setPhase("error");
+      return;
+    }
+    setPhase("working");
+    setMsg(null);
+    setClaim(null);
+    setTxStep("proving");
+    try {
+      await ensureSeed();
+      if (isChainConfigured() && wallet.signer) await syncFromChain();
+      const note = walletStore.spendable()[0];
+      if (!note) throw new Error("No spendable note found after syncing");
+      setLastAmount(note.value.toString());
+      const cm = noteCommitment({ secret: note.secret, value: note.value });
+      // The recipient's output note: a fresh secret + the SAME (hidden) value (1-in/1-out).
+      const outSecret = walletStore.freshSecret(note.value);
+      const outValue = note.value;
+      const input = walletStore.transferInput(cm, { secret: outSecret, value: outValue });
+      if (!input) throw new Error("couldn't build the transfer for this note");
+      const proof = await prover.run("transfer", input as unknown as Record<string, unknown>);
+      let txHash: string | null = null;
+      let leafIndex = 0;
+      if (isChainConfigured()) {
+        if (!wallet.signer) throw new Error("Connect your wallet to move funds on-chain");
+        setTxStep("signing");
+        const res = await submitTransfer(
+          {
+            proof,
+            root: BigInt(input.root),
+            nullifier: BigInt(input.nullifier),
+            outCommitment: BigInt(input.outCommitment),
+          },
+          wallet.signer,
+          (p) => setTxStep(p),
+        );
+        txHash = res.hash;
+        leafIndex = res.leafIndex;
+        walletStore.markSpent(cm); // input spent; the output note belongs to the recipient
+        setMsg(txHash);
+      } else {
+        await sleep(1200);
+      }
+      setClaim(encodeClaim({ secret: outSecret, value: outValue, leafIndex }));
+      void auditStore.log({
+        kind: "send",
+        amount: note.value.toString(),
+        asset: ASSET,
+        direction: "out",
+        commitment: String(cm),
+        nullifier: String(input.nullifier),
+        root: String(input.root),
+        txHash,
+        explorerUrl: txHash ? EXPLORER_TX(txHash) : null,
+        counterparty: null,
+        disclosureNote: `Confidential transfer of ${note.value} ${ASSET} — the amount is hidden on-chain (only a nullifier + commitment are public). Delivered to the recipient as a private claim.`,
+      });
+      setPhase("done");
+    } catch (e) {
+      setMsg((e as Error).message);
+      setPhase("error");
+    }
+  }
+
   async function onPayLink() {
     setPhase("working");
     setMsg(null);
@@ -292,8 +363,10 @@ export default function WalletPage() {
             onBack={() => go("home")}
             onShield={onShield}
             onSend={onSend}
+            onTransfer={doTransfer}
             onUnshield={onUnshield}
             onPayLink={onPayLink}
+            claim={claim}
           />
         )}
       </div>
@@ -319,6 +392,7 @@ function Home({
   onSync: () => void;
 }) {
   const actions: { v: View; label: string; sub: string; Icon: typeof Send }[] = [
+    { v: "transfer", label: "Private send", sub: "Send a note — amount hidden on-chain", Icon: Sparkles },
     { v: "shield", label: "Shield", sub: "Deposit privately", Icon: ArrowDownToLine },
     { v: "send", label: "Send", sub: "To any address", Icon: Send },
     { v: "unshield", label: "Unshield", sub: "Cash out to you", Icon: ArrowUpRight },
@@ -365,7 +439,11 @@ function Home({
           <button
             key={a.v}
             onClick={() => onAction(a.v)}
-            className="group flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-5 text-left transition-colors hover:border-[#FF3B00]/50"
+            className={`group flex flex-col items-start gap-3 rounded-2xl border p-5 text-left transition-colors ${
+              a.v === "transfer"
+                ? "col-span-2 border-[#FF3B00]/40 bg-[#FF3B00]/[0.05] hover:border-[#FF3B00]"
+                : "border-border bg-card hover:border-[#FF3B00]/50"
+            }`}
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF3B00]/10 text-[#FF3B00]">
               <a.Icon className="h-5 w-5" strokeWidth={2} />
@@ -380,10 +458,7 @@ function Home({
 
       {/* Roadmap */}
       <div className="mt-3 grid grid-cols-2 gap-3">
-        {[
-          { label: "Private Swap", Icon: Repeat },
-          { label: "Private Transfer", Icon: Sparkles },
-        ].map((r) => (
+        {[{ label: "Private Swap", Icon: Repeat }].map((r) => (
           <div key={r.label} className="flex items-center gap-3 rounded-2xl border border-dashed border-border px-5 py-4 opacity-60">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.04] text-muted-foreground">
               <r.Icon className="h-4 w-4" />
@@ -521,13 +596,16 @@ function ActionPanel(props: {
   onBack: () => void;
   onShield: () => void;
   onSend: () => void;
+  onTransfer: () => void;
   onUnshield: () => void;
   onPayLink: () => void;
+  claim: string | null;
 }) {
   const { view, phase, txStep, prover, wallet, amount, setAmount, to, setTo, msg, link, balance, onBack } = props;
   const meta = {
     shield: { title: "Shield funds", sub: "Move public funds into the privacy pool.", cta: "Shield privately", run: props.onShield },
-    send: { title: "Send privately", sub: "Withdraw to any address — unlinkable from your deposit.", cta: "Send privately", run: props.onSend },
+    transfer: { title: "Private send", sub: "Send a shielded note to anyone — the amount stays hidden on-chain.", cta: "Send privately", run: props.onTransfer },
+    send: { title: "Send to address", sub: "Withdraw to any Stellar address — unlinkable from your deposit; amount public.", cta: "Send", run: props.onSend },
     unshield: { title: "Unshield", sub: "Cash out your private balance to your own wallet.", cta: "Unshield", run: props.onUnshield },
     paylink: { title: "Request a payment", sub: "Generate a private link anyone can pay.", cta: "Generate link", run: props.onPayLink },
   }[view];
@@ -546,6 +624,7 @@ function ActionPanel(props: {
             view={view}
             msg={msg}
             link={link}
+            claim={props.claim}
             copied={props.copied}
             setCopied={props.setCopied}
             amount={props.lastAmount}
@@ -562,11 +641,18 @@ function ActionPanel(props: {
             {(view === "shield" || view === "paylink") && (
               <AmountField label="Amount" suffix={ASSET} value={amount} onChange={(e) => setAmount(e.target.value)} />
             )}
-            {(view === "send" || view === "unshield") && (
+            {(view === "send" || view === "unshield" || view === "transfer") && (
               <div className="rounded-xl bg-white/[0.04] px-5 py-4">
                 <p className="text-sm text-muted-foreground">Private balance</p>
                 <p className="mt-1 font-mono text-2xl font-semibold text-foreground">{balance} <span className="text-base text-muted-foreground">{ASSET}</span></p>
               </div>
+            )}
+            {view === "transfer" && (
+              <p className="rounded-xl border border-[#FF3B00]/20 bg-[#FF3B00]/[0.04] px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                Sends one shielded note privately — the amount is{" "}
+                <span className="text-foreground">hidden on-chain</span>. Your recipient gets a
+                one-time claim link to receive it.
+              </p>
             )}
             {view === "send" && (
               <Field label="Recipient address" hint="Any Stellar address. Unlinkable from your deposit." mono placeholder="G…" value={to} onChange={(e) => setTo(e.target.value)} />
@@ -588,6 +674,7 @@ function Success({
   view,
   msg,
   link,
+  claim,
   copied,
   setCopied,
   amount,
@@ -596,11 +683,57 @@ function Success({
   view: View;
   msg: string | null;
   link: CreatedLink | null;
+  claim: string | null;
   copied: boolean;
   setCopied: (b: boolean) => void;
   amount: string;
   to: string | null;
 }) {
+  if (view === "transfer" && claim) {
+    const url = claimUrl(claim);
+    return (
+      <div className="flex flex-col items-center gap-4 py-2 text-center">
+        <SuccessMark className="mx-auto" />
+        <p className="text-lg font-semibold text-foreground">Sent privately · amount hidden</p>
+        <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+          A confidential transfer landed on-chain — the ledger sees a nullifier and a new
+          commitment, never the amount. Hand this claim to your recipient to receive it:
+        </p>
+        <div className="rounded-2xl border border-border bg-white p-4">
+          <QRCodeSVG value={url} size={160} marginSize={0} />
+        </div>
+        <div className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] p-2 pl-4 text-left">
+          <span className="flex-1 truncate font-mono text-sm text-muted-foreground">{url}</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              navigator.clipboard?.writeText(url);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1600);
+            }}
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Bearer claim — whoever opens it receives the funds. Share it privately.
+        </p>
+        {msg ? (
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${msg}`}
+            target="_blank"
+            rel="noreferrer noopener"
+            referrerPolicy="no-referrer"
+            className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            View the transfer on-chain →
+          </a>
+        ) : null}
+      </div>
+    );
+  }
   if (view === "paylink" && link) {
     const url = linkUrl(link.id);
     return (
