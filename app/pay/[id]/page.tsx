@@ -8,6 +8,7 @@ import { SuccessMark } from "@/components/umbra/success-mark";
 import { Button, Card, Eyebrow, Logo } from "@/components/umbra/ui";
 import { CryptoTimeline, FUND_STEPS } from "@/components/umbra/crypto-timeline";
 import { decodePaymentLink, type PaymentLinkPayload } from "@/lib/umbra/payment-link";
+import { stroopsToXlm } from "@/lib/umbra/units";
 import { submitShield } from "@/lib/umbra/soroban";
 import { walletStore } from "@/lib/umbra/wallet";
 import { isChainConfigured } from "@/lib/umbra/config";
@@ -81,7 +82,7 @@ export default function PayPage() {
                   <span className="font-medium text-foreground">{payload.title}</span> · to {payload.recipientName}
                 </p>
                 <p className="mt-4 font-mono text-4xl font-semibold tracking-tight text-foreground">
-                  {payload.amount} <span className="text-2xl text-muted-foreground">USDC</span>
+                  {stroopsToXlm(BigInt(payload.amount))} <span className="text-2xl text-muted-foreground">XLM</span>
                 </p>
                 {payload.description && <p className="mt-3 text-sm text-muted-foreground">{payload.description}</p>}
               </div>
@@ -94,7 +95,7 @@ export default function PayPage() {
                 ) : (
                   <div className="flex flex-col gap-3">
                     {isChainConfigured() && <WalletConnect wallet={wallet} />}
-                    <Button size="block" onClick={onPay}>Pay {payload.amount} USDC</Button>
+                    <Button size="block" onClick={onPay}>Pay {stroopsToXlm(BigInt(payload.amount))} XLM</Button>
                     {phase === "error" && <p className="text-sm text-destructive">{msg}</p>}
                     <p className="text-center text-xs text-[#9CA3AF]">
                       This payment is secured by a zero-knowledge proof verified on Stellar.

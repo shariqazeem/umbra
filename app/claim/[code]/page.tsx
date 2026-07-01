@@ -6,6 +6,7 @@ import { ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { Shell, Card, Button, Eyebrow } from "@/components/umbra/ui";
 import { decodeClaim, type PrivateSendClaim } from "@/lib/umbra/private-send";
 import { walletStore } from "@/lib/umbra/wallet";
+import { stroopsToXlm } from "@/lib/umbra/units";
 
 export default function ClaimPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -18,7 +19,7 @@ export default function ClaimPage({ params }: { params: Promise<{ code: string }
     claim = null;
   }
 
-  const value = claim ? claim.value.toString() : "";
+  const value = claim ? stroopsToXlm(claim.value) : "";
   const add = () => {
     if (!claim) return;
     walletStore.importNote(claim.secret, claim.value, claim.leafIndex);

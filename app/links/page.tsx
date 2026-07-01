@@ -7,6 +7,7 @@ import { AmountField, Button, Card, Eyebrow, Field, Shell, Textarea } from "@/co
 import { CryptoTimeline, SHIELD_STEPS } from "@/components/umbra/crypto-timeline";
 import { SuccessMark } from "@/components/umbra/success-mark";
 import { createPaymentLink, linkUrl, type CreatedLink } from "@/lib/umbra/payment-link";
+import { xlmToStroops } from "@/lib/umbra/units";
 
 export default function LinksPage() {
   const [title, setTitle] = useState("Design work");
@@ -22,7 +23,7 @@ export default function LinksPage() {
     setError(null);
     setProving(true);
     try {
-      const link = await createPaymentLink({ title, description, recipientName, amount: BigInt(amount) });
+      const link = await createPaymentLink({ title, description, recipientName, amount: xlmToStroops(amount) });
       setCreated(link);
     } catch (e) {
       setError((e as Error).message);

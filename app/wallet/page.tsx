@@ -26,6 +26,7 @@ import { addressToField, submitShield, submitTransfer, submitWithdraw } from "@/
 import { createPaymentLink, linkUrl, type CreatedLink } from "@/lib/umbra/payment-link";
 import { encodeClaim, claimUrl } from "@/lib/umbra/private-send";
 import { isChainConfigured } from "@/lib/umbra/config";
+import { xlmToStroops, stroopsToXlm } from "@/lib/umbra/units";
 import { auditStore } from "@/lib/umbra/audit-store";
 import { DisclosureKit } from "@/components/umbra/disclosure-kit";
 import { TxProgress, type TxStep } from "@/components/umbra/tx-progress";
@@ -116,8 +117,9 @@ export default function WalletPage() {
     setTxStep("proving");
     try {
       await ensureSeed();
-      const value = BigInt(amount);
-      setLastAmount(value.toString());
+      const value = xlmToStroops(amount);
+      if (value <= 0n) throw new Error("Enter an amount to shield.");
+      setLastAmount(stroopsToXlm(value));
       const { commitment } = walletStore.createNote(value);
       const input = walletStore.shieldInput(commitment);
       if (!input) throw new Error("couldn't prepare the note");
@@ -170,7 +172,7 @@ export default function WalletPage() {
       if (isChainConfigured() && wallet.signer) await syncFromChain();
       const note = walletStore.spendable()[0];
       if (!note) throw new Error("No spendable note found after syncing");
-      setLastAmount(note.value.toString());
+      setLastAmount(stroopsToXlm(note.value));
       const cm = noteCommitment({ secret: note.secret, value: note.value });
 
       // C1 — bind the proof to its payee BEFORE proving. The withdrawal proof's
@@ -212,7 +214,7 @@ export default function WalletPage() {
       }
       void auditStore.log({
         kind,
-        amount: note.value.toString(),
+        amount: stroopsToXlm(note.value),
         asset: ASSET,
         direction: "out",
         commitment: String(cm),
@@ -223,8 +225,8 @@ export default function WalletPage() {
         counterparty: payoutAddr,
         disclosureNote:
           kind === "send"
-            ? `Sent ${note.value} ${ASSET} privately to ${payoutAddr ?? "a recipient"}. (v1: an unlinkable withdraw-to-recipient — not yet a shielded→shielded transfer.)`
-            : `Unshielded ${note.value} ${ASSET} to your own address${payoutAddr ? ` ${payoutAddr}` : ""}.`,
+            ? `Sent ${stroopsToXlm(note.value)} ${ASSET} privately to ${payoutAddr ?? "a recipient"}. (v1: an unlinkable withdraw-to-recipient — not yet a shielded→shielded transfer.)`
+            : `Unshielded ${stroopsToXlm(note.value)} ${ASSET} to your own address${payoutAddr ? ` ${payoutAddr}` : ""}.`,
       });
       setPhase("done");
     } catch (e) {
@@ -240,7 +242,7 @@ export default function WalletPage() {
   // claim the recipient imports. No amount appears on-chain (public inputs are only root,
   // nullifier, and the two output commitments).
   async function doTransfer() {
-    const sendAmt = BigInt(amount || "0");
+    const sendAmt = xlmToStroops(amount);
     if (sendAmt <= 0n) {
       setMsg("Enter an amount to send.");
       setPhase("error");
@@ -263,10 +265,10 @@ export default function WalletPage() {
       if (!note) {
         const max = walletStore.spendable().reduce((m, n) => (n.value > m ? n.value : m), 0n);
         throw new Error(
-          `No single note covers ${sendAmt} ${ASSET} — your largest is ${max}. Shield more, or send up to ${max}.`,
+          `No single note covers ${stroopsToXlm(sendAmt)} ${ASSET} — your largest is ${stroopsToXlm(max)}. Shield more, or send up to ${stroopsToXlm(max)}.`,
         );
       }
-      setLastAmount(sendAmt.toString());
+      setLastAmount(stroopsToXlm(sendAmt));
       const cm = noteCommitment({ secret: note.secret, value: note.value });
       const changeAmt = note.value - sendAmt;
       // out1 = recipient (fresh random secret, delivered via claim). out2 = change
@@ -307,7 +309,7 @@ export default function WalletPage() {
       setClaim(encodeClaim({ secret: recipientSecret, value: sendAmt, leafIndex: leaf1 }));
       void auditStore.log({
         kind: "send",
-        amount: sendAmt.toString(),
+        amount: stroopsToXlm(sendAmt),
         asset: ASSET,
         direction: "out",
         commitment: String(cm),
@@ -316,7 +318,7 @@ export default function WalletPage() {
         txHash,
         explorerUrl: txHash ? EXPLORER_TX(txHash) : null,
         counterparty: null,
-        disclosureNote: `Confidential transfer of ${sendAmt} ${ASSET} (${changeAmt} change kept) — both amounts hidden on-chain. Delivered to the recipient as a private claim.`,
+        disclosureNote: `Confidential transfer of ${stroopsToXlm(sendAmt)} ${ASSET} (${stroopsToXlm(changeAmt)} change kept) — both amounts hidden on-chain. Delivered to the recipient as a private claim.`,
       });
       setPhase("done");
     } catch (e) {
@@ -333,12 +335,12 @@ export default function WalletPage() {
         title: "Private payment request",
         description: "",
         recipientName: "You",
-        amount: BigInt(amount),
+        amount: xlmToStroops(amount),
       });
       setLink(l);
       void auditStore.log({
         kind: "pay_link_created",
-        amount: BigInt(amount).toString(),
+        amount: amount,
         asset: ASSET,
         direction: "request",
         label: "Private payment request",
@@ -356,7 +358,7 @@ export default function WalletPage() {
       <div className="mx-auto max-w-xl">
         {view === "home" ? (
           <Home
-            balance={balance.toString()}
+            balance={stroopsToXlm(balance)}
             notes={notes}
             wallet={wallet}
             onAction={go}
@@ -378,7 +380,7 @@ export default function WalletPage() {
             link={link}
             copied={copied}
             setCopied={setCopied}
-            balance={balance.toString()}
+            balance={stroopsToXlm(balance)}
             lastAmount={lastAmount}
             lastTo={lastTo}
             onBack={() => go("home")}
@@ -518,7 +520,7 @@ function Home({
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-mono text-[15px] font-medium text-foreground">{d.sign}{n.value.toString()} {ASSET}</span>
+                  <span className="font-mono text-[15px] font-medium text-foreground">{d.sign}{stroopsToXlm(n.value)} {ASSET}</span>
                   <Pill tone={d.tone}>{d.label}</Pill>
                 </div>
               </Card>

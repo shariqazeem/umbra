@@ -6,6 +6,7 @@ import { Check, Copy, FileText, Shield } from "lucide-react";
 import { AmountField, Button, Card, Eyebrow, Field, Shell } from "@/components/umbra/ui";
 import { CryptoTimeline, SHIELD_STEPS } from "@/components/umbra/crypto-timeline";
 import { createPaymentLink, linkUrl, type CreatedLink } from "@/lib/umbra/payment-link";
+import { xlmToStroops } from "@/lib/umbra/units";
 
 export default function InvoicePage() {
   const [business, setBusiness] = useState("Rivera Design");
@@ -27,7 +28,7 @@ export default function InvoicePage() {
         title: `Invoice #${number}`,
         description: `${item} · ${due} · for ${client}`,
         recipientName: business,
-        amount: BigInt(amount),
+        amount: xlmToStroops(amount),
       });
       setCreated(link);
     } catch (e) {
