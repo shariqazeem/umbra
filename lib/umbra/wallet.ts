@@ -203,13 +203,22 @@ class WalletStore {
 
   /**
    * Build the witness for a confidential "private send": spend the note under
-   * `inCommitment` and re-note its full (hidden) value to `out` — the recipient's fresh
-   * output note. 1-in/1-out, so the output carries the same value as the input.
+   * `inCommitment` and split its (hidden) value across two outputs — `out1` (the recipient's
+   * fresh note) and `out2` (the sender's change). 1-in/2-out; conservation is enforced.
    */
-  transferInput(inCommitment: bigint, out: { secret: bigint; value: bigint }): TransferInput | null {
+  transferInput(
+    inCommitment: bigint,
+    out1: { secret: bigint; value: bigint },
+    out2: { secret: bigint; value: bigint },
+  ): TransferInput | null {
     const note = this.notes.find((n) => noteCommitment(toNote(n)) === inCommitment);
     if (!note || note.leafIndex === null) return null;
-    return buildTransferInput(toNote(note), this.tree(), { secret: out.secret, value: out.value });
+    return buildTransferInput(
+      toNote(note),
+      this.tree(),
+      { secret: out1.secret, value: out1.value },
+      { secret: out2.secret, value: out2.value },
+    );
   }
 
   /** A fresh random note secret — used for the recipient's output note in a private send. */

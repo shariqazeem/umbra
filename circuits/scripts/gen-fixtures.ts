@@ -56,10 +56,13 @@ const withdrawInput = buildWithdrawInput(note, tree, RECIPIENT);
 writeFileSync(join(build, "shield_input.json"), JSON.stringify(shieldInput, null, 2));
 writeFileSync(join(build, "withdraw_input.json"), JSON.stringify(withdrawInput, null, 2));
 
-// 3. Confidential transfer ("private send", 1-in / 1-out): spend the shielded note → a
-// recipient note of the SAME (hidden) value. The amount is never revealed on-chain.
-const out = makeNote(AMOUNT); // recipient note, same value, fresh secret
-const transferInput = buildTransferInput(note, tree, out);
+// 3. Confidential transfer (join-split, 1-in / 2-out): spend the shielded note into a
+// recipient note + a change note. Values are private; only conservation is enforced.
+const OUT1 = 700n; // recipient
+const OUT2 = AMOUNT - OUT1; // change
+const out1 = makeNote(OUT1);
+const out2 = makeNote(OUT2);
+const transferInput = buildTransferInput(note, tree, out1, out2);
 writeFileSync(join(build, "transfer_input.json"), JSON.stringify(transferInput, null, 2));
 writeFileSync(
   join(build, "slice_meta.json"),

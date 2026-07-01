@@ -20,7 +20,7 @@ use soroban_sdk::{
 mod poseidon;
 mod poseidon_constants;
 
-use poseidon::{fr_from_bytes, fr_to_bytes, poseidon2};
+use poseidon::{fr_from_bytes, fr_to_bytes, PoseidonParams};
 use poseidon_constants::{MERKLE_DEPTH, ZERO_HASHES};
 
 /// Recent roots retained for withdrawal (a withdrawal may prove against any of these).
@@ -201,29 +201,35 @@ impl UmbraPool {
         Ok(())
     }
 
-    /// Confidential shielded→shielded transfer ("private send", 1-in / 1-out).
+    /// Confidential shielded→shielded transfer (join-split, 1-in / 2-out).
     ///
-    /// Verifies the transfer proof (which proves, in zero knowledge, inclusion of the
-    /// spent input note, its nullifier, a well-formed output commitment carrying the same
-    /// HIDDEN value, and a 64-bit range on that value), spends the input nullifier, and
-    /// inserts the output commitment. **No amount is revealed and NO token moves** — value
-    /// stays in the pool, re-noted to the recipient. Public inputs (pinned order):
-    /// [root, nullifier, out_commitment].
+    /// Verifies the transfer proof (which proves, in zero knowledge, inclusion of the spent
+    /// input note, its nullifier, two well-formed output commitments, value conservation,
+    /// and a 64-bit range on every amount), spends the input nullifier, and inserts BOTH
+    /// output commitments (recipient + change). **No amount is revealed and NO token
+    /// moves** — value stays in the pool, re-split. Public inputs (pinned order):
+    /// [root, nullifier, out_commitment1, out_commitment2].
     ///
-    /// 1-out (rather than a 2-out join-split with change) is a deliberate fit to Stellar's
-    /// per-transaction compute budget, which allows the Groth16/BLS verify plus a single
-    /// Poseidon Merkle insert; two inserts exceed it at this depth. See the circuit header.
+    /// The two Merkle inserts fit Stellar's per-tx compute budget because PoseidonParams
+    /// deserializes the round constants + MDS once per call (see poseidon.rs), not per hash.
     pub fn transfer(
         env: Env,
         proof: Proof,
         root: BytesN<32>,
         nullifier: BytesN<32>,
-        out_commitment: BytesN<32>,
-    ) -> Result<u32, Error> {
+        out_commitment1: BytesN<32>,
+        out_commitment2: BytesN<32>,
+    ) -> Result<(u32, u32), Error> {
         let s = env.storage().instance();
         let vk: VerifyingKey = s.get(&DataKey::VkTransfer).ok_or(Error::NotInitialized)?;
 
-        let public_inputs = vec![&env, root.clone(), nullifier.clone(), out_commitment.clone()];
+        let public_inputs = vec![
+            &env,
+            root.clone(),
+            nullifier.clone(),
+            out_commitment1.clone(),
+            out_commitment2.clone(),
+        ];
         if !verify_groth16(&env, &vk, &proof, &public_inputs) {
             return Err(Error::InvalidProof);
         }
@@ -233,15 +239,15 @@ impl UmbraPool {
             return Err(Error::UnknownRoot);
         }
 
-        // The fixed-depth tree must have room for the output commitment.
+        // The fixed-depth tree must have room for both output commitments.
         let next: u32 = s.get(&DataKey::NextIndex).unwrap_or(0);
-        if next >= (1u32 << (MERKLE_DEPTH as u32)) {
+        if next + 2 > (1u32 << (MERKLE_DEPTH as u32)) {
             return Err(Error::TreeFull);
         }
 
         // Spend the input note exactly once. No address auth: the proof IS the
-        // authorization (only the note owner knows the secret), and the output is a fixed
-        // commitment in the proof, so a relayer/front-runner cannot redirect value.
+        // authorization (only the note owner knows the secret), and the outputs are fixed
+        // commitments in the proof, so a relayer/front-runner cannot redirect value.
         let nf_key = DataKey::Nullifier(nullifier.clone());
         if env.storage().persistent().has(&nf_key) {
             return Err(Error::NullifierAlreadySpent);
@@ -249,12 +255,15 @@ impl UmbraPool {
         env.storage().persistent().set(&nf_key, &true);
         env.storage().persistent().extend_ttl(&nf_key, 100_000, 1_000_000);
 
-        // Insert the output commitment (value never leaves the pool).
-        let leaf = Self::insert_commitment(&env, &out_commitment);
+        // Insert both output commitments (value never leaves the pool).
+        let leaf1 = Self::insert_commitment(&env, &out_commitment1);
+        let leaf2 = Self::insert_commitment(&env, &out_commitment2);
 
-        env.events()
-            .publish((Symbol::new(&env, "TransferCompleted"),), (nullifier, out_commitment, leaf));
-        Ok(leaf)
+        env.events().publish(
+            (Symbol::new(&env, "TransferCompleted"),),
+            (nullifier, out_commitment1, out_commitment2, leaf1, leaf2),
+        );
+        Ok((leaf1, leaf2))
     }
 
     // --- read-only views -----------------------------------------------------
@@ -296,6 +305,8 @@ impl UmbraPool {
         let leaf_index: u32 = s.get(&DataKey::NextIndex).unwrap();
         let mut frontier: Vec<BytesN<32>> = s.get(&DataKey::Frontier).unwrap();
 
+        // Deserialize the Poseidon constants ONCE for all MERKLE_DEPTH hashes of this insert.
+        let params = PoseidonParams::new(env);
         let mut idx = leaf_index;
         let mut cur = fr_from_bytes(commitment);
         for d in 0..MERKLE_DEPTH {
@@ -303,10 +314,10 @@ impl UmbraPool {
                 // current node is a left child: record it, hash with the zero sibling.
                 frontier.set(d as u32, fr_to_bytes(&cur));
                 let z = fr_from_bytes(&BytesN::from_array(env, &ZERO_HASHES[d]));
-                cur = poseidon2(env, &cur, &z);
+                cur = params.hash2(env, &cur, &z);
             } else {
                 let left = fr_from_bytes(&frontier.get_unchecked(d as u32));
-                cur = poseidon2(env, &left, &cur);
+                cur = params.hash2(env, &left, &cur);
             }
             idx >>= 1;
         }

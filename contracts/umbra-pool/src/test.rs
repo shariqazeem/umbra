@@ -202,21 +202,23 @@ fn confidential_transfer_works() {
     }
     let ctx = setup();
     let t = &ctx.transfer;
-    // transfer publics = [root, nullifier, outCommitment]
+    // transfer publics = [root, nullifier, outCommitment1, outCommitment2]
     let root = t.publics.get_unchecked(0);
     let nullifier = t.publics.get_unchecked(1);
-    let out = t.publics.get_unchecked(2);
+    let out1 = t.publics.get_unchecked(2);
+    let out2 = t.publics.get_unchecked(3);
 
     let before = ctx.client.next_index();
-    let leaf = ctx.client.transfer(&t.proof, &root, &nullifier, &out);
-    assert_eq!(leaf, before, "output inserted at the next slot");
-    assert_eq!(ctx.client.next_index(), before + 1, "one output commitment inserted");
+    let (leaf1, leaf2) = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2);
+    assert_eq!(leaf1, before, "first output inserted at the next slot");
+    assert_eq!(leaf2, before + 1, "second output inserted after it");
+    assert_eq!(ctx.client.next_index(), before + 2, "two output commitments inserted");
     assert!(ctx.client.is_spent(&nullifier), "the input note's nullifier is spent");
     // No token moved — the pool still holds exactly the shielded amount.
     assert_eq!(ctx.token.balance(&ctx.client.address), AMOUNT, "value stays in the pool");
 
     // Double-spend of the same input note is rejected.
-    let again = ctx.client.try_transfer(&t.proof, &root, &nullifier, &out);
+    let again = ctx.client.try_transfer(&t.proof, &root, &nullifier, &out1, &out2);
     assert!(again.is_err(), "reusing the spent nullifier must fail");
 }
 

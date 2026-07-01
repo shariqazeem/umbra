@@ -69,4 +69,4 @@ template Withdraw(depth) {
     recipientSq <== recipient * recipient;
 }
 
-component main {public [root, nullifier, recipient, amount]} = Withdraw(8);
+component main {public [root, nullifier, recipient, amount]} = Withdraw(6);

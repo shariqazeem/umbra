@@ -4,7 +4,7 @@
 
 pub const POSEIDON_RF: usize = 8;
 pub const POSEIDON_RP: usize = 57;
-pub const MERKLE_DEPTH: usize = 8;
+pub const MERKLE_DEPTH: usize = 6;
 
 /// Round constants, flat, length t*(R_F+R_P) = 195.
 pub const POSEIDON_C: [[u8; 32]; 195] = [

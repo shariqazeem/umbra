@@ -235,10 +235,17 @@ export default function WalletPage() {
   const onSend = () => doWithdraw(() => to.trim() || null, "send");
   const onUnshield = () => doWithdraw(() => to.trim() || wallet.address, "withdraw");
 
-  // Confidential transfer ("private send"): spend a shielded note and re-note its full,
-  // HIDDEN value to the recipient. Produces a bearer claim they import — the amount never
-  // appears on-chain (public inputs are only root, nullifier, outCommitment).
+  // Confidential transfer ("private send"): spend a shielded note and split its HIDDEN
+  // value into a recipient note + a change note (1-in/2-out join-split). Produces a bearer
+  // claim the recipient imports. No amount appears on-chain (public inputs are only root,
+  // nullifier, and the two output commitments).
   async function doTransfer() {
+    const sendAmt = BigInt(amount || "0");
+    if (sendAmt <= 0n) {
+      setMsg("Enter an amount to send.");
+      setPhase("error");
+      return;
+    }
     if (!walletStore.spendable()[0]) {
       setMsg("No private balance yet — shield some funds first.");
       setPhase("error");
@@ -251,18 +258,30 @@ export default function WalletPage() {
     try {
       await ensureSeed();
       if (isChainConfigured() && wallet.signer) await syncFromChain();
-      const note = walletStore.spendable()[0];
-      if (!note) throw new Error("No spendable note found after syncing");
-      setLastAmount(note.value.toString());
+      // 1-in/2-out spends ONE note, so it must cover the send + change.
+      const note = walletStore.spendable().find((n) => n.value >= sendAmt);
+      if (!note) {
+        const max = walletStore.spendable().reduce((m, n) => (n.value > m ? n.value : m), 0n);
+        throw new Error(
+          `No single note covers ${sendAmt} ${ASSET} — your largest is ${max}. Shield more, or send up to ${max}.`,
+        );
+      }
+      setLastAmount(sendAmt.toString());
       const cm = noteCommitment({ secret: note.secret, value: note.value });
-      // The recipient's output note: a fresh secret + the SAME (hidden) value (1-in/1-out).
-      const outSecret = walletStore.freshSecret(note.value);
-      const outValue = note.value;
-      const input = walletStore.transferInput(cm, { secret: outSecret, value: outValue });
+      const changeAmt = note.value - sendAmt;
+      // out1 = recipient (fresh random secret, delivered via claim). out2 = change
+      // (seed-derived so it stays recoverable in the sender's own wallet).
+      const recipientSecret = walletStore.freshSecret(sendAmt);
+      const change = walletStore.createNote(changeAmt);
+      const input = walletStore.transferInput(
+        cm,
+        { secret: recipientSecret, value: sendAmt },
+        { secret: change.note.secret, value: changeAmt },
+      );
       if (!input) throw new Error("couldn't build the transfer for this note");
       const proof = await prover.run("transfer", input as unknown as Record<string, unknown>);
       let txHash: string | null = null;
-      let leafIndex = 0;
+      let leaf1 = 0;
       if (isChainConfigured()) {
         if (!wallet.signer) throw new Error("Connect your wallet to move funds on-chain");
         setTxStep("signing");
@@ -271,22 +290,24 @@ export default function WalletPage() {
             proof,
             root: BigInt(input.root),
             nullifier: BigInt(input.nullifier),
-            outCommitment: BigInt(input.outCommitment),
+            outCommitment1: BigInt(input.outCommitment1),
+            outCommitment2: BigInt(input.outCommitment2),
           },
           wallet.signer,
           (p) => setTxStep(p),
         );
         txHash = res.hash;
-        leafIndex = res.leafIndex;
-        walletStore.markSpent(cm); // input spent; the output note belongs to the recipient
+        leaf1 = res.leaf1;
+        walletStore.markSpent(cm); // input note spent
+        walletStore.observe(change.commitment, res.leaf2); // change note now spendable
         setMsg(txHash);
       } else {
         await sleep(1200);
       }
-      setClaim(encodeClaim({ secret: outSecret, value: outValue, leafIndex }));
+      setClaim(encodeClaim({ secret: recipientSecret, value: sendAmt, leafIndex: leaf1 }));
       void auditStore.log({
         kind: "send",
-        amount: note.value.toString(),
+        amount: sendAmt.toString(),
         asset: ASSET,
         direction: "out",
         commitment: String(cm),
@@ -295,7 +316,7 @@ export default function WalletPage() {
         txHash,
         explorerUrl: txHash ? EXPLORER_TX(txHash) : null,
         counterparty: null,
-        disclosureNote: `Confidential transfer of ${note.value} ${ASSET} — the amount is hidden on-chain (only a nullifier + commitment are public). Delivered to the recipient as a private claim.`,
+        disclosureNote: `Confidential transfer of ${sendAmt} ${ASSET} (${changeAmt} change kept) — both amounts hidden on-chain. Delivered to the recipient as a private claim.`,
       });
       setPhase("done");
     } catch (e) {
@@ -638,20 +659,25 @@ function ActionPanel(props: {
           )
         ) : (
           <div className="flex flex-col gap-5">
-            {(view === "shield" || view === "paylink") && (
-              <AmountField label="Amount" suffix={ASSET} value={amount} onChange={(e) => setAmount(e.target.value)} />
-            )}
             {(view === "send" || view === "unshield" || view === "transfer") && (
               <div className="rounded-xl bg-white/[0.04] px-5 py-4">
                 <p className="text-sm text-muted-foreground">Private balance</p>
                 <p className="mt-1 font-mono text-2xl font-semibold text-foreground">{balance} <span className="text-base text-muted-foreground">{ASSET}</span></p>
               </div>
             )}
+            {(view === "shield" || view === "paylink" || view === "transfer") && (
+              <AmountField
+                label={view === "transfer" ? "Amount to send" : "Amount"}
+                suffix={ASSET}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            )}
             {view === "transfer" && (
               <p className="rounded-xl border border-[#FF3B00]/20 bg-[#FF3B00]/[0.04] px-4 py-3 text-sm leading-relaxed text-muted-foreground">
-                Sends one shielded note privately — the amount is{" "}
-                <span className="text-foreground">hidden on-chain</span>. Your recipient gets a
-                one-time claim link to receive it.
+                Send any amount — your <span className="text-foreground">change comes back to you</span>,
+                and both amounts are <span className="text-foreground">hidden on-chain</span>. Your
+                recipient gets a one-time claim link to receive it.
               </p>
             )}
             {view === "send" && (

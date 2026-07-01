@@ -1,26 +1,30 @@
-// Umbra confidential transfer circuit — a shielded→shielded "private send" (1-in, 1-out)
-// with a HIDDEN amount. Spends one input note and re-notes its full value to a fresh
-// output note (for the recipient) WITHOUT revealing the amount: the chain sees only a
-// spent nullifier and one new commitment, never a number.
+// Umbra confidential transfer circuit — a shielded→shielded join-split (1-in, 2-out) with
+// HIDDEN amounts. Spends one input note and splits its value across two output notes
+// (recipient + change), all WITHOUT revealing any amount: the chain sees a spent nullifier
+// and two new commitments, never a number. This is the "send any private amount, keep the
+// change, everything hidden" flow.
 //
-// Why 1-out: Stellar's per-transaction compute budget allows a Groth16/BLS verify plus a
-// single Poseidon Merkle insert. A 2-output join-split (arbitrary amount + change) needs
-// two inserts and exceeds that budget at this tree depth — a documented limitation, not a
-// soundness gap. Whole-note sends (this circuit) fit comfortably and are a real
-// confidential transfer; arbitrary-amount-with-change is future work (2-tx flow, shallower
-// tree, or a host-side Poseidon).
+// It does two on-chain Merkle inserts (one per output). That fits Stellar's per-tx compute
+// budget only because the contract's Poseidon deserializes its constants once per call
+// (see contracts/umbra-pool/src/poseidon.rs PoseidonParams) rather than per hash.
 //
 // Proves, in zero knowledge:
 //   1. inclusion   — the input note's commitment is a leaf under `root`
 //   2. ownership   — prover knows `secret` s.t. inCommitment = Poseidon(secret, value)
 //   3. nullifier   — nullifier = Poseidon(secret, leafIndex)  (one-time spend)
-//   4. well-formed out — outCommitment = Poseidon(outSecret, value)  (same hidden value)
-//   5. range       — value ∈ [0, 2^64)  (defensive; the value is also a real note opening)
+//   4. well-formed — outCommitment_i = Poseidon(outSecret_i, outValue_i)
+//   5. conservation — value == outValue1 + outValue2   (the ONLY tie between amounts)
+//   6. range       — value, outValue1, outValue2 ∈ [0, 2^64)
+//
+// (6) is SECURITY-CRITICAL: with both outputs bounded to 64 bits their sum cannot wrap the
+// field, so (5) holds over the integers — without it a prover could forge value via modular
+// overflow (the classic confidential-transaction trap).
 //
 // Public inputs (CROSS-LANGUAGE PIN — must match UmbraPool::transfer):
 //   [0] root
 //   [1] nullifier
-//   [2] outCommitment   (recipient note — value hidden)
+//   [2] outCommitment1   (recipient note)
+//   [3] outCommitment2   (change note)
 pragma circom 2.1.6;
 
 include "./poseidon/poseidon.circom";
@@ -46,7 +50,8 @@ template Transfer(depth) {
     // ---- public ----
     signal input root;
     signal input nullifier;
-    signal input outCommitment;
+    signal input outCommitment1;
+    signal input outCommitment2;
 
     // ---- private: the input note being spent ----
     signal input secret;
@@ -54,8 +59,11 @@ template Transfer(depth) {
     signal input pathElements[depth];
     signal input pathIndices[depth];
 
-    // ---- private: the output note (recipient), same hidden value ----
-    signal input outSecret;
+    // ---- private: the two output notes (recipient + change) ----
+    signal input outSecret1;
+    signal input outValue1;
+    signal input outSecret2;
+    signal input outValue2;
 
     // (2) ownership: re-derive the input commitment.
     component inCm = PoseidonT3();
@@ -88,15 +96,27 @@ template Transfer(depth) {
     nf.inputs[1] <== leafIndex;
     nf.out === nullifier;
 
-    // (4) output commitment: the recipient note carries the SAME value, kept private.
-    component oc = PoseidonT3();
-    oc.inputs[0] <== outSecret;
-    oc.inputs[1] <== value;
-    oc.out === outCommitment;
+    // (4) output commitments are well-formed Poseidon openings.
+    component oc1 = PoseidonT3();
+    oc1.inputs[0] <== outSecret1;
+    oc1.inputs[1] <== outValue1;
+    oc1.out === outCommitment1;
 
-    // (5) range proof — value is a valid 64-bit amount (no amount is ever public).
-    component rng = RangeN(64);
-    rng.in <== value;
+    component oc2 = PoseidonT3();
+    oc2.inputs[0] <== outSecret2;
+    oc2.inputs[1] <== outValue2;
+    oc2.out === outCommitment2;
+
+    // (6) range proofs — SECURITY-CRITICAL. Each amount < 2^64.
+    component rIn = RangeN(64);
+    rIn.in <== value;
+    component rO1 = RangeN(64);
+    rO1.in <== outValue1;
+    component rO2 = RangeN(64);
+    rO2.in <== outValue2;
+
+    // (5) value conservation — no amount is ever a public input.
+    value === outValue1 + outValue2;
 }
 
-component main {public [root, nullifier, outCommitment]} = Transfer(8);
+component main {public [root, nullifier, outCommitment1, outCommitment2]} = Transfer(6);

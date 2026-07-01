@@ -200,11 +200,12 @@ export async function submitTransfer(
     proof: Groth16ProofJson;
     root: bigint;
     nullifier: bigint;
-    outCommitment: bigint;
+    outCommitment1: bigint;
+    outCommitment2: bigint;
   },
   signer: Signer,
   onStatus?: (p: SubmitPhase) => void,
-): Promise<{ hash: string; leafIndex: number }> {
+): Promise<{ hash: string; leaf1: number; leaf2: number }> {
   const sdk = await import("@stellar/stellar-sdk");
   const res = await invoke(
     sdk,
@@ -213,13 +214,15 @@ export async function submitTransfer(
       proofScVal(sdk, args.proof.proof),
       sdk.nativeToScVal(bytes32(args.root)),
       sdk.nativeToScVal(bytes32(args.nullifier)),
-      sdk.nativeToScVal(bytes32(args.outCommitment)),
+      sdk.nativeToScVal(bytes32(args.outCommitment1)),
+      sdk.nativeToScVal(bytes32(args.outCommitment2)),
     ],
     signer,
     onStatus,
   );
-  // transfer() returns the output commitment's on-chain leaf index — the recipient needs
-  // it to build the Merkle path when they later spend the received note.
-  const leafIndex = res.returnValue != null ? Number(sdk.scValToNative(res.returnValue)) : 0;
-  return { hash: res.hash, leafIndex };
+  // transfer() returns (leaf1, leaf2) — the on-chain indices of the recipient + change
+  // commitments. The recipient needs leaf1 to build the Merkle path for the received note.
+  const ret =
+    res.returnValue != null ? (sdk.scValToNative(res.returnValue) as [number, number]) : [0, 0];
+  return { hash: res.hash, leaf1: Number(ret[0] ?? 0), leaf2: Number(ret[1] ?? 0) };
 }
