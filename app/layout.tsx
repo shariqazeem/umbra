@@ -25,9 +25,25 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
-  title: "Umbra — Private Finance for Stellar",
-  description: "Consumer privacy layer for Stellar commerce.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  title: "Umbra — Private money on Stellar",
+  description:
+    "Hold a private balance, send with the amount hidden on-chain, and disclose only when you choose — every move verified by a zero-knowledge proof on Stellar.",
   applicationName: "Umbra",
+  openGraph: {
+    title: "Umbra — Private money on Stellar",
+    description:
+      "Shield, send with the amount hidden on-chain, and cash out unlinkably. Our own zero-knowledge circuits, verified by a Stellar smart contract.",
+    images: [{ url: "/art/og.png" }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Umbra — Private money on Stellar",
+    description:
+      "Private payments on Stellar with the amount hidden on-chain. Our own ZK, verified on-chain.",
+    images: ["/art/og.png"],
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

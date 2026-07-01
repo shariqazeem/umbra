@@ -6,6 +6,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, ChevronDown, Github, Lock } from "lucide-react";
 import { Button, Logo } from "@/components/umbra/ui";
 import { CinematicBackground, SmoothScroll } from "@/components/umbra/cinematic";
+import { Atmosphere } from "@/components/umbra/atmosphere";
 import { PoolScene } from "@/components/umbra/pool-scene";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +103,10 @@ export function LandingNarrative() {
 
       {/* ── Section 1 · Hero ── */}
       <section ref={heroRef} className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 text-center">
+        {/* cinematic hero backdrop — the dawn-glow void (align bottom so the ember sits low) */}
+        <motion.div aria-hidden style={{ opacity: heroOpacity }} className="absolute inset-0 -z-10">
+          <Atmosphere src="/art/hero.png" align="bottom" opacity={0.92} scrim="none" priority />
+        </motion.div>
         {/* signal glow */}
         <motion.div
           aria-hidden
@@ -224,7 +229,8 @@ export function LandingNarrative() {
       </Section>
 
       {/* ── Real-world money ── */}
-      <Section>
+      <Section className="relative isolate overflow-hidden">
+        <Atmosphere src="/art/surface.png" align="bottom" opacity={0.4} scrim="vertical" />
         <div className="w-full max-w-4xl">
           <Reveal>
             <h2 className="text-center text-4xl font-bold tracking-tight text-foreground md:text-5xl">
@@ -256,7 +262,8 @@ export function LandingNarrative() {
       </Section>
 
       {/* ── Section 4 · The Reveal ── */}
-      <Section className="bg-white/[0.02]">
+      <Section className="relative isolate overflow-hidden bg-white/[0.02]">
+        <Atmosphere src="/art/merkle.png" align="bottom" opacity={0.55} scrim="vertical" />
         <div className="w-full max-w-3xl text-center">
           <Reveal>
             <h2 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">What the chain sees.</h2>
@@ -389,7 +396,8 @@ export function LandingNarrative() {
       </Section>
 
       {/* ── Section 8 · Close ── */}
-      <Section className="min-h-screen">
+      <Section className="relative isolate min-h-screen overflow-hidden">
+        <Atmosphere src="/art/og.png" align="center" opacity={0.5} scrim="radial" />
         <Reveal>
           <div className="text-center">
             <h2 className="text-5xl font-bold tracking-tight text-foreground md:text-6xl">Get paid privately.</h2>

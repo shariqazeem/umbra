@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CinematicBackground, SmoothScroll } from "@/components/umbra/cinematic";
+import { Atmosphere } from "@/components/umbra/atmosphere";
 
 /* ─────────────────────────────  Button (ink, never signal)  ───────────────────────────── */
 
@@ -163,11 +164,20 @@ export function TopBar({ active }: { active?: string }) {
   );
 }
 
-export function Shell({ children, active }: { children: React.ReactNode; active?: string }) {
+export function Shell({
+  children,
+  active,
+  atmosphere,
+}: {
+  children: React.ReactNode;
+  active?: string;
+  atmosphere?: string;
+}) {
   return (
     <div className="relative min-h-screen">
       <SmoothScroll />
       <CinematicBackground />
+      {atmosphere ? <Atmosphere src={atmosphere} fixed opacity={0.26} scrim="top" /> : null}
       <TopBar active={active} />
       <main className="animate-fade-up relative z-10 mx-auto max-w-shell px-6 py-12 sm:py-16">{children}</main>
     </div>

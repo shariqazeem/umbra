@@ -260,7 +260,7 @@ export default function WalletPage() {
   }
 
   return (
-    <Shell active="/wallet">
+    <Shell active="/wallet" atmosphere="/art/vault.png">
       <div className="mx-auto max-w-xl">
         {view === "home" ? (
           <Home
