@@ -134,8 +134,8 @@ export function LandingNarrative() {
             className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-muted-foreground transition-all duration-700 ease-out md:text-lg"
             style={enter(800)}
           >
-            Hold a private balance, pay anyone unlinkably, and cash out — every move enforced by a
-            zero-knowledge proof a Stellar smart contract verifies on-chain.
+            Hold a private balance, send with the amount hidden on-chain, and cash out unlinkably —
+            every move enforced by a zero-knowledge proof a Stellar smart contract verifies on-chain.
           </p>
           <div
             className="mt-10 flex flex-col items-center justify-center gap-3 transition-all duration-700 ease-out sm:flex-row"
@@ -197,7 +197,7 @@ export function LandingNarrative() {
           <div className="mt-14 flex flex-col items-stretch gap-4 md:flex-row md:items-center">
             {[
               { word: "Shield", desc: "Move funds into the pool — a deposit no one can link to you later." },
-              { word: "Send", desc: "Pay anyone, or cash out — unlinkable from where your money came from." },
+              { word: "Send", desc: "Transfer a shielded note privately — the amount hidden on-chain — or cash out, unlinkable from where the money came." },
               { word: "Disclose", desc: "Export an encrypted audit packet. Private by default, accountable by choice." },
             ].map((c, i) => (
               <React.Fragment key={c.word}>
@@ -217,7 +217,7 @@ export function LandingNarrative() {
           </div>
           <Reveal delay={200}>
             <p className="mt-12 text-base italic text-[#9CA3AF]">
-              No trusted relayers. No mixers. Just math — verified by a Stellar smart contract.
+              Non-custodial. No trusted relayers. Our own zero-knowledge circuits — verified by a Stellar smart contract.
             </p>
           </Reveal>
         </div>
@@ -311,6 +311,7 @@ export function LandingNarrative() {
             {[
               ["Zero-knowledge proofs", "Every transaction includes a Groth16 proof: mathematical evidence that the rules were followed, with nothing else revealed."],
               ["On-chain verification", "The Stellar smart contract verifies each proof before releasing funds. No trusted servers. No relayers."],
+              ["Confidential transfers", "Send a shielded note with the amount hidden on-chain — our own zero-knowledge circuit, not a third-party token. The chain sees a nullifier and a commitment, never a number."],
               ["Poseidon commitments", "Your funds become sealed commitments — cryptographic locks that only you can open."],
               ["Nullifier protection", "One-time nullifiers prevent double-spending. The math enforces it, not a company."],
             ].map(([title, desc], i) => (

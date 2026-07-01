@@ -11,6 +11,8 @@ export const UMBRA_CONFIG = {
   withdrawZkeyUrl: "/circuits/withdraw_final.zkey",
   shieldWasmUrl: "/circuits/shield_js/shield.wasm",
   shieldZkeyUrl: "/circuits/shield_final.zkey",
+  transferWasmUrl: "/circuits/transfer_js/transfer.wasm",
+  transferZkeyUrl: "/circuits/transfer_final.zkey",
   // Proving mode. "live" (default): real in-browser Groth16 proving in a Worker.
   // "pregen" (Path A): replay a pre-generated proof for video recording. Live
   // proving is never removed — pregen only activates when set AND a demo proof

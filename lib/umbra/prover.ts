@@ -1,7 +1,7 @@
 // Browser-side Groth16 proving (snarkjs over BLS12-381). The withdraw witness
 // carries the spending secret, so proving MUST happen here, in the user's browser,
 // never on a server (FEASIBILITY_REVIEW.md §5). Artifacts are fetched from /public.
-import type { ShieldInput, WithdrawInput } from "@umbra/wallet-core";
+import type { ShieldInput, TransferInput, WithdrawInput } from "@umbra/wallet-core";
 import { UMBRA_CONFIG } from "./config";
 
 export interface Groth16ProofJson {
@@ -27,6 +27,10 @@ export function proveWithdraw(input: WithdrawInput): Promise<Groth16ProofJson> {
   return prove(input as unknown as Record<string, unknown>, UMBRA_CONFIG.withdrawWasmUrl, UMBRA_CONFIG.withdrawZkeyUrl);
 }
 
+export function proveTransfer(input: TransferInput): Promise<Groth16ProofJson> {
+  return prove(input as unknown as Record<string, unknown>, UMBRA_CONFIG.transferWasmUrl, UMBRA_CONFIG.transferZkeyUrl);
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * Off-thread proving seam (ADDITIVE — the proving math above is unchanged).
  *
@@ -38,11 +42,12 @@ export function proveWithdraw(input: WithdrawInput): Promise<Groth16ProofJson> {
  * `prove` / `proveShield` / `proveWithdraw` stay as the untouched reference path.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export type ProverVariant = "shield" | "withdraw";
+export type ProverVariant = "shield" | "withdraw" | "transfer";
 
 export const PROVER_ARTIFACTS: Record<ProverVariant, { wasmUrl: string; zkeyUrl: string }> = {
   shield: { wasmUrl: UMBRA_CONFIG.shieldWasmUrl, zkeyUrl: UMBRA_CONFIG.shieldZkeyUrl },
   withdraw: { wasmUrl: UMBRA_CONFIG.withdrawWasmUrl, zkeyUrl: UMBRA_CONFIG.withdrawZkeyUrl },
+  transfer: { wasmUrl: UMBRA_CONFIG.transferWasmUrl, zkeyUrl: UMBRA_CONFIG.transferZkeyUrl },
 };
 
 /**

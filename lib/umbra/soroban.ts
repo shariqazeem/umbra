@@ -189,3 +189,34 @@ export async function submitWithdraw(
   );
   return { hash: res.hash };
 }
+
+/**
+ * Confidential shielded→shielded transfer ("private send"). Spends the input note and
+ * inserts one output commitment. No amount and no address are on-chain — the public
+ * inputs are only [root, nullifier, out_commitment], so the transferred value is hidden.
+ */
+export async function submitTransfer(
+  args: {
+    proof: Groth16ProofJson;
+    root: bigint;
+    nullifier: bigint;
+    outCommitment: bigint;
+  },
+  signer: Signer,
+  onStatus?: (p: SubmitPhase) => void,
+): Promise<{ hash: string }> {
+  const sdk = await import("@stellar/stellar-sdk");
+  const res = await invoke(
+    sdk,
+    "transfer",
+    [
+      proofScVal(sdk, args.proof.proof),
+      sdk.nativeToScVal(bytes32(args.root)),
+      sdk.nativeToScVal(bytes32(args.nullifier)),
+      sdk.nativeToScVal(bytes32(args.outCommitment)),
+    ],
+    signer,
+    onStatus,
+  );
+  return { hash: res.hash };
+}
