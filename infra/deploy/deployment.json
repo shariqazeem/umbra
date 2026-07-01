@@ -2,20 +2,24 @@
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "contractIds": {
-    "pool": "CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX",
+    "pool": "CBQIG4ERYT3VVNV4JA6RIPUMAOANXTHOXIY3W7MRVA5MLECFNQUHMZEX",
     "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
   },
-  "wasmHash": "fe2f637953950baf357ce34b8fc9462b91def1e7460d1213663c2234edfc778c",
-  "deployTx": "0030b4a7e78bc91edc5606ade7ef9cf242eafd8c62cf08b6914d253db111904a",
-  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/0030b4a7e78bc91edc5606ade7ef9cf242eafd8c62cf08b6914d253db111904a",
-  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX",
+  "wasmHash": "7e27eee57ce9d966470cec41efab09adba723f350fa42423ae54d4e8b0e9b366",
+  "deployTx": "6693392af0aae39d1372a7b161d80f0e4775e0e95657c7418909aaf6f225a4c7",
+  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/6693392af0aae39d1372a7b161d80f0e4775e0e95657c7418909aaf6f225a4c7",
+  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CBQIG4ERYT3VVNV4JA6RIPUMAOANXTHOXIY3W7MRVA5MLECFNQUHMZEX",
   "deployer": "GAHR34WCIIS4TQDGC362ETJSHXNLE6AF6ZDK3EPONNPFRIEXLWNOHYXQ",
   "deployerId": "umbra-deployer",
   "explorerBase": "https://stellar.expert/explorer/testnet",
-  "deployedAt": "2026-06-30T20:23:59Z",
-  "shieldTx": "ef25404c5fadf4b4ab4c071bbea608811bf1dcad13535e0d47893f1f7f742597",
-  "withdrawTx": "a37f97c22147998eaddf1cff1a98b1ba6318361e663072b2d1a41805a15a4e73",
-  "shieldExplorerUrl": "https://stellar.expert/explorer/testnet/tx/ef25404c5fadf4b4ab4c071bbea608811bf1dcad13535e0d47893f1f7f742597",
-  "withdrawExplorerUrl": "https://stellar.expert/explorer/testnet/tx/a37f97c22147998eaddf1cff1a98b1ba6318361e663072b2d1a41805a15a4e73",
-  "demoCapturedAt": "2026-06-30T20:26:09Z"
+  "deployedAt": "2026-07-01T12:31:58Z",
+  "shieldTx": "ae35a7165914a5b5ff2288fb3bac2a749911c93db7ec5469b5ed641b7d12cc52",
+  "transferTx": "bf7613bdf6481e61ab64a7ee3855485059d0e59bb79d7793d4c64f0f4151c3e0",
+  "shieldExplorerUrl": "https://stellar.expert/explorer/testnet/tx/ae35a7165914a5b5ff2288fb3bac2a749911c93db7ec5469b5ed641b7d12cc52",
+  "transferExplorerUrl": "https://stellar.expert/explorer/testnet/tx/bf7613bdf6481e61ab64a7ee3855485059d0e59bb79d7793d4c64f0f4151c3e0",
+  "features": [
+    "shield",
+    "withdraw (C1-bound)",
+    "confidential transfer (hidden amount)"
+  ]
 }

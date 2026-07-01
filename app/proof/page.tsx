@@ -29,7 +29,7 @@ const D = deployment as {
   deployer: string;
   explorerBase: string;
   shieldTx: string;
-  withdrawTx: string;
+  transferTx: string;
 };
 
 const EXPLORER = D.explorerBase || "https://stellar.expert/explorer/testnet";
@@ -271,7 +271,7 @@ export default function ProofPage() {
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <TxEvidence kind="Shield · deposit" hash={D.shieldTx} />
-          <TxEvidence kind="Withdraw · the proof verified" hash={D.withdrawTx} />
+          <TxEvidence kind="Confidential transfer · amount hidden" hash={D.transferTx} />
         </div>
         <div className="mt-6 rounded-2xl border border-dashed border-border bg-white/[0.02] p-5">
           <p className="text-sm font-medium text-foreground">…and the same flow, driven entirely from the browser.</p>
