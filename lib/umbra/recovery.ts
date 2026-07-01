@@ -51,6 +51,7 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
 
   const deposits: Deposit[] = [];
   const spent = new Set<string>();
+  const leafAt = new Map<number, bigint>(); // every inserted commitment, by on-chain leaf index
   let cursor: string | undefined;
 
   // The RPC paginates sparsely (a page can be empty while more ledgers remain), so we
@@ -64,18 +65,27 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
       : { startLedger, filters: [{ type: "contract" as const, contractIds: [pool] }], limit: 200 };
     const resp = await server.getEvents(req as Parameters<typeof server.getEvents>[0]);
     const events = resp.events ?? [];
-    const before = deposits.length + spent.size;
+    const before = leafAt.size + spent.size;
     for (const ev of events) {
       const topics = (ev.topic ?? []) as unknown[];
       const t0 = topics[0] ? sdk.scValToNative(topics[0] as never) : null;
       const val = ev.value ? sdk.scValToNative(ev.value as never) : null;
       if (t0 === "DepositCreated" && Array.isArray(val)) {
-        deposits.push({ commitment: toBig(val[0]), leafIndex: Number(val[1]), amount: toBig(val[2]) });
+        const commitment = toBig(val[0]);
+        const leafIndex = Number(val[1]);
+        deposits.push({ commitment, leafIndex, amount: toBig(val[2]) });
+        leafAt.set(leafIndex, commitment);
       } else if (t0 === "WithdrawalCompleted" && Array.isArray(val)) {
         spent.add(toBig(val[0]).toString());
+      } else if (t0 === "TransferCompleted" && Array.isArray(val)) {
+        // (nullifier, outCommitment1, outCommitment2, leaf1, leaf2): a spent input note plus
+        // two new commitments that MUST be in the tree for inclusion paths to match on-chain.
+        spent.add(toBig(val[0]).toString());
+        leafAt.set(Number(val[3]), toBig(val[1]));
+        leafAt.set(Number(val[4]), toBig(val[2]));
       }
     }
-    if (deposits.length + spent.size > before) {
+    if (leafAt.size + spent.size > before) {
       found = true;
       emptyStreak = 0;
     } else {
@@ -86,9 +96,13 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
     if (found && emptyStreak >= 3) break;
   }
 
-  // Full tree leaves, ordered by leaf index.
+  // Full tree leaves, DENSE by on-chain leaf index (deposits + transfer outputs). Building
+  // from a leaf-indexed map keeps positions correct even when transfer-output leaves sit
+  // between deposits — otherwise the reconstructed root would not match the contract's.
   deposits.sort((a, b) => a.leafIndex - b.leafIndex);
-  const allLeaves = deposits.map((d) => d.commitment);
+  const maxLeaf = leafAt.size > 0 ? Math.max(...leafAt.keys()) : -1;
+  const allLeaves: bigint[] = [];
+  for (let i = 0; i <= maxLeaf; i++) allLeaves.push(leafAt.get(i) ?? 0n);
 
   // Re-derive secrets and match deposits → owned notes.
   const secrets = Array.from({ length: MAX_NONCE_SCAN }, (_, n) => deriveNoteSecret(seed, n));
