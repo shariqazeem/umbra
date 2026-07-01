@@ -444,10 +444,10 @@ function Home({
   onSync: () => void;
 }) {
   const actions: { v: View; label: string; sub: string; Icon: typeof Send }[] = [
-    { v: "transfer", label: "Private send", sub: "Send a note — amount hidden on-chain", Icon: Sparkles },
+    { v: "transfer", label: "Private send", sub: "Hidden amount → a private claim link", Icon: Sparkles },
     { v: "shield", label: "Shield", sub: "Deposit privately", Icon: ArrowDownToLine },
-    { v: "send", label: "Send", sub: "To any address", Icon: Send },
-    { v: "unshield", label: "Unshield", sub: "Cash out to you", Icon: ArrowUpRight },
+    { v: "send", label: "Send", sub: "Public amount → any Stellar wallet", Icon: Send },
+    { v: "unshield", label: "Unshield", sub: "Cash out to your own wallet", Icon: ArrowUpRight },
     { v: "paylink", label: "Pay link", sub: "Request a payment", Icon: Link2 },
   ];
   return (
@@ -656,9 +656,9 @@ function ActionPanel(props: {
   const { view, phase, txStep, prover, wallet, amount, setAmount, to, setTo, msg, link, balance, onBack } = props;
   const meta = {
     shield: { title: "Shield funds", sub: "Move public funds into the privacy pool.", cta: "Shield privately", run: props.onShield },
-    transfer: { title: "Private send", sub: "Send a shielded note to anyone — the amount stays hidden on-chain.", cta: "Send privately", run: props.onTransfer },
-    send: { title: "Send to address", sub: "Withdraw to any Stellar address — unlinkable from your deposit; amount public.", cta: "Send", run: props.onSend },
-    unshield: { title: "Unshield", sub: "Cash out your private balance to your own wallet.", cta: "Unshield", run: props.onUnshield },
+    transfer: { title: "Private send", sub: "Send to anyone via a private claim link — the amount is hidden on-chain and the funds stay shielded until they claim.", cta: "Send privately", run: props.onTransfer },
+    send: { title: "Send to address", sub: "Pay any Stellar wallet real XLM. The amount is public, but it can't be linked to you — and your change stays private.", cta: "Send", run: props.onSend },
+    unshield: { title: "Unshield", sub: "Cash out to your own wallet. The amount is public but unlinkable to you; your change stays private.", cta: "Unshield", run: props.onUnshield },
     paylink: { title: "Request a payment", sub: "Generate a private link anyone can pay.", cta: "Generate link", run: props.onPayLink },
   }[view];
 
