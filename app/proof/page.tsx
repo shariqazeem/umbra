@@ -28,21 +28,14 @@ const D = deployment as {
   deployTx: string;
   deployer: string;
   explorerBase: string;
-  shieldTx: string;
-  transferTx: string;
+  shieldTx?: string;
+  transferTx?: string;
 };
 
 const EXPLORER = D.explorerBase || "https://stellar.expert/explorer/testnet";
 const tx = (h: string) => `${EXPLORER}/tx/${h}`;
 const contract = (c: string) => `${EXPLORER}/contract/${c}`;
 const account = (a: string) => `${EXPLORER}/account/${a}`;
-
-// Browser-driven end-to-end proof (docs/BROWSER_E2E.md) — submitted from the UI.
-const BROWSER_E2E = {
-  pool: "CDY54W6J4NZMCZJ4NFOP6WT4O5E5RD73CQDUXDVFNLVV4P5TLSYU2KCQ",
-  shieldTx: "4798875e7835b2029bc49ced7b31e573b6c15a866a5a5f7efdcbd6be1e0c0846",
-  withdrawTx: "0cf5517edac205b696ba0661b38f873db14ce63f831b8fb282bcbce2f6e63069",
-};
 
 const copyCls =
   "size-7 rounded-md border-border bg-transparent text-muted-foreground hover:bg-white/10 hover:text-foreground";
@@ -164,16 +157,18 @@ const PIPELINE: { icon: typeof Cpu; title: string; sentence: string }[] = [
 ];
 
 const STELLAR_SEES = [
-  "The deposit amount",
-  "The withdrawal amount",
+  "A shield (deposit) amount",
+  "A withdrawal's public amount — but not its change",
   "The pool contract address",
-  "The recipient address",
+  "A withdrawal's recipient address",
   "The nullifier (an opaque one-time tag)",
   "Transaction timing",
 ];
 
 const UMBRA_HIDES = [
   "Which deposit funded which withdrawal",
+  "A confidential transfer's amount — fully hidden (only a nullifier + two commitments touch the chain)",
+  "The change on every withdrawal — it stays a private note in the pool",
   "Your note secret (never leaves the browser)",
   "Your private balance — only your wallet can reconstruct it",
   "Your local audit metadata, unless you choose to disclose it",
@@ -188,12 +183,12 @@ const RECOVERY = [
 ];
 
 const TESTS: [string, string][] = [
-  ["cargo test -p umbra-pool", "5 / 5 — real Groth16 proofs vs the real BLS12-381 host"],
-  ["cargo test (bench-pool)", "6 / 6"],
+  ["cargo test -p umbra-pool", "10 / 10 — real Groth16 proofs vs the real BLS12-381 host"],
   ["@umbra/crypto-bls", "13 / 13 — Poseidon: Rust ≡ circuit ≡ TS"],
+  ["vitest (unit/component)", "25 / 25"],
   ["tsc --noEmit", "clean"],
   ["next build", "15 / 15 routes"],
-  ["browser → testnet shield + withdraw", "confirmed on Horizon"],
+  ["browser → testnet shield · transfer · unshield", "confirmed on Horizon"],
 ];
 
 export default function ProofPage() {
@@ -213,7 +208,7 @@ export default function ProofPage() {
         <div className="mt-5 flex flex-wrap gap-2">
           <Pill tone="signal">Live on testnet</Pill>
           <Pill tone="ink">BLS12-381 · Groth16</Pill>
-          <Pill tone="ink">5/5 contract tests</Pill>
+          <Pill tone="ink">10/10 contract tests</Pill>
           <Pill tone="ink">Proven from the browser</Pill>
         </div>
 
@@ -256,10 +251,11 @@ export default function ProofPage() {
           <Fact label="Curve" value="BLS12-381" />
           <Fact label="On-chain verify" value="CAP-0059 host fns" />
           <Fact label="Hash" value="Poseidon" />
-          <Fact label="Circuits" value="Circom (shield · withdraw)" />
-          <Fact label="Merkle depth" value="8 (256 notes)" />
+          <Fact label="Circuits" value="Circom (shield · withdraw · transfer)" />
+          <Fact label="Merkle depth" value="6 (64 notes)" />
           <Fact label="Shield public inputs" value="[commitment, amount]" />
-          <Fact label="Withdraw public inputs" value="[root, nullifier, recipient, amount]" />
+          <Fact label="Withdraw public inputs" value="[root, nullifier, recipient, amount, change]" />
+          <Fact label="Transfer public inputs" value="[root, nullifier, out₁, out₂]" />
         </div>
 
         {/* Real transactions */}
@@ -267,31 +263,40 @@ export default function ProofPage() {
           Two real, unlinkable transactions
         </h2>
         <p className="mb-4 text-sm text-muted-foreground">
-          A shield (deposit) and a withdraw — on-chain they share no linking data. Both confirmed successful on Horizon.
+          A shield (deposit) and a confidential transfer — on-chain they share no linking data, and the transfer
+          reveals no amount at all. Both confirmed on Horizon.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <TxEvidence kind="Shield · deposit" hash={D.shieldTx} />
-          <TxEvidence kind="Confidential transfer · amount hidden" hash={D.transferTx} />
-        </div>
-        <div className="mt-6 rounded-2xl border border-dashed border-border bg-white/[0.02] p-5">
-          <p className="text-sm font-medium text-foreground">…and the same flow, driven entirely from the browser.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            No terminal — proof generated in the page, signed, and submitted from the UI (see
-            <code className="mx-1 font-mono text-[0.95em]">docs/BROWSER_E2E.md</code>).
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <TxEvidence kind="Browser shield" hash={BROWSER_E2E.shieldTx} />
-            <TxEvidence kind="Browser withdraw" hash={BROWSER_E2E.withdrawTx} />
+        {D.shieldTx && D.transferTx ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <TxEvidence kind="Shield · deposit" hash={D.shieldTx} />
+            <TxEvidence kind="Confidential transfer · amount hidden" hash={D.transferTx} />
           </div>
-        </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border bg-white/[0.02] p-5">
+            <p className="text-sm font-medium text-foreground">Freshly redeployed — generate your own evidence.</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              This deployment&rsquo;s live proof is its{" "}
+              <a href={tx(D.deployTx)} target="_blank" rel="noreferrer noopener" referrerPolicy="no-referrer" className="text-[#FF3B00] underline-offset-4 hover:underline">
+                constructor transaction
+              </a>{" "}
+              (above). Shield, send, and unshield transactions appear on the explorer the moment you run the
+              wallet against this pool — nothing is pre-baked, so every hash you see is one you produced.
+            </p>
+            <Link href="/wallet" className="mt-3 inline-block">
+              <Button size="sm" variant="secondary">Open the wallet and produce one</Button>
+            </Link>
+          </div>
+        )}
 
         {/* What Stellar sees vs what Umbra hides */}
         <h2 className="mb-2 mt-14 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           What Stellar sees vs what Umbra hides
         </h2>
         <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
-          Be clear-eyed: Umbra gives <span className="text-foreground">link privacy</span>, not confidential amounts.
-          Amounts are public; the connection between a deposit and a withdrawal is not.
+          Be precise about what&rsquo;s hidden. Shielding and cashing out reveal their amounts — that&rsquo;s{" "}
+          <span className="text-foreground">link privacy</span>: the deposit↔withdrawal connection is broken. A{" "}
+          <span className="text-foreground">confidential transfer reveals no amount at all</span>, and every
+          withdrawal keeps its <span className="text-foreground">change private</span> in the pool.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Card className="p-5">
@@ -361,8 +366,10 @@ export default function ProofPage() {
           <PipelineCard icon={FileCode2} title="Circuits (Circom)">
             <span className="font-mono text-[0.9em]">shield</span> proves{" "}
             <span className="font-mono text-[0.9em]">commitment = Poseidon(secret, amount)</span>.{" "}
-            <span className="font-mono text-[0.9em]">withdraw</span> proves Merkle inclusion, ownership, a one-time
-            nullifier, recipient binding, and amount conservation — all in zero knowledge.
+            <span className="font-mono text-[0.9em]">withdraw</span> and{" "}
+            <span className="font-mono text-[0.9em]">transfer</span> are join-splits: each proves Merkle inclusion,
+            ownership, a one-time nullifier, value conservation, and a 64-bit range on every amount — so a
+            withdrawal keeps private change and a transfer hides amounts entirely.
           </PipelineCard>
           <PipelineCard icon={ShieldCheck} title="On-chain verifier">
             A BLS12-381 Groth16 verifier using Stellar&rsquo;s native host functions (CAP-0059) — a G1 MSM + a 4-term
@@ -383,9 +390,11 @@ export default function ProofPage() {
             Web Worker — off the main thread, ~2.5s for the 3.9 MB withdraw key. No server ever sees your secret.
           </PipelineCard>
           <PipelineCard icon={Boxes} title="The pool contract">
-            <span className="font-mono text-[0.9em]">shield()</span> verifies + inserts + returns the leaf index;{" "}
-            <span className="font-mono text-[0.9em]">withdraw()</span> verifies + checks root/nullifier + pays out.
-            Money cannot move without an on-chain-verified proof.
+            <span className="font-mono text-[0.9em]">shield()</span> verifies + inserts + returns the leaf;{" "}
+            <span className="font-mono text-[0.9em]">withdraw()</span> verifies + spends the nullifier + inserts the
+            change note + pays the public amount out;{" "}
+            <span className="font-mono text-[0.9em]">transfer()</span> spends one note into two new commitments with
+            no token moving. Money cannot move without an on-chain-verified proof.
           </PipelineCard>
         </div>
 
@@ -439,7 +448,8 @@ export default function ProofPage() {
             <p className="text-sm font-semibold text-[#FF3B00]">Real, on-chain, today</p>
             <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
               <li>Shield (deposit) — proof verified on-chain</li>
-              <li>Withdraw / Send — proof verified on-chain, unlinkable</li>
+              <li>Confidential transfer (private send) — shielded→shielded, amount hidden</li>
+              <li>Unshield / withdraw — any amount, private change, C1-bound</li>
               <li>Private payment / donation / invoice links</li>
               <li>In-browser proving + Freighter signing</li>
               <li>Selective disclosure (encrypted audit packets)</li>
@@ -449,8 +459,7 @@ export default function ProofPage() {
           <Card className="p-5">
             <p className="text-sm font-semibold text-muted-foreground">Roadmap (not faked)</p>
             <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
-              <li>Confidential amounts (today amounts are public)</li>
-              <li>Shielded→shielded transfer (join-split)</li>
+              <li>Confidential amounts on shield + withdraw (public today; transfers already hide them)</li>
               <li>Fee-privacy relayer · production indexer</li>
               <li>MPC trusted-setup ceremony · independent audit</li>
               <li>Mainnet release (security-gated)</li>

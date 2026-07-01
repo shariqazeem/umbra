@@ -16,29 +16,51 @@ export function buildShieldInput(note: Note): ShieldInput {
   };
 }
 
+/** Withdraw (join-split, 1-in / 1-public-out / 1-change). `amount` is public; change is hidden. */
 export interface WithdrawInput {
   root: string;
   nullifier: string;
   recipient: string;
   amount: string;
+  changeCommitment: string;
   secret: string;
   value: string;
   pathElements: string[];
   pathIndices: string[];
+  changeSecret: string;
+  changeValue: string;
 }
 
-export function buildWithdrawInput(note: Note, tree: MerkleTree, recipient: bigint): WithdrawInput {
+/**
+ * Build the witness for a shielded→public withdrawal with private change: spend `note`, pay a
+ * PUBLIC `amount` out to a bound `recipient`, and keep the remainder as `changeNote`. Enforces
+ * value conservation off-chain too (amount + change == value) so a non-conserving call fails
+ * fast rather than producing an unsatisfiable witness.
+ */
+export function buildWithdrawInput(
+  note: Note,
+  tree: MerkleTree,
+  recipient: bigint,
+  amount: bigint,
+  changeNote: Note,
+): WithdrawInput {
   if (note.leafIndex === undefined) throw new Error("note has no leafIndex (not observed in tree)");
+  if (amount + changeNote.value !== note.value) {
+    throw new Error("withdraw is not value-conserving (amount + change must equal the input note value)");
+  }
   const p = tree.path(note.leafIndex);
   return {
     root: p.root.toString(),
     nullifier: nullifier(note, note.leafIndex).toString(),
     recipient: recipient.toString(),
-    amount: note.value.toString(),
+    amount: amount.toString(),
+    changeCommitment: commitment(changeNote).toString(),
     secret: note.secret.toString(),
     value: note.value.toString(),
     pathElements: p.pathElements.map((x) => x.toString()),
     pathIndices: p.pathIndices.map((x) => x.toString()),
+    changeSecret: changeNote.secret.toString(),
+    changeValue: changeNote.value.toString(),
   };
 }
 

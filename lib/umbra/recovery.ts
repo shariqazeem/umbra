@@ -76,7 +76,10 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
         deposits.push({ commitment, leafIndex, amount: toBig(val[2]) });
         leafAt.set(leafIndex, commitment);
       } else if (t0 === "WithdrawalCompleted" && Array.isArray(val)) {
+        // (nullifier, to, amount, change_commitment, change_leaf): a spent input note plus a
+        // new change commitment that MUST be in the tree for inclusion paths to match on-chain.
         spent.add(toBig(val[0]).toString());
+        if (val.length >= 5) leafAt.set(Number(val[4]), toBig(val[3]));
       } else if (t0 === "TransferCompleted" && Array.isArray(val)) {
         // (nullifier, outCommitment1, outCommitment2, leaf1, leaf2): a spent input note plus
         // two new commitments that MUST be in the tree for inclusion paths to match on-chain.

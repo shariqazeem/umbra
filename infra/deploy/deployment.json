@@ -2,25 +2,21 @@
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "contractIds": {
-    "pool": "CDXGQYMSF4SOEE2ZCBKMMPT4JE27XMNFNNTUZUIH5BWA2QHJOXFGEU5O",
+    "pool": "CBD37QCPJD4QPK6G7N4HBOPOERG7QWUBHQMVUILI3TQKHOWBL2PKSGXL",
     "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
   },
-  "wasmHash": "6e04628b7371cbfe420f21fc3a55f9457b2f87a4c715cbca4400013695926224",
-  "deployTx": "04392951d1812ecd8f76fae972e63be0f6726fef73af4ab74ee893c85632c789",
-  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/04392951d1812ecd8f76fae972e63be0f6726fef73af4ab74ee893c85632c789",
-  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CDXGQYMSF4SOEE2ZCBKMMPT4JE27XMNFNNTUZUIH5BWA2QHJOXFGEU5O",
+  "wasmHash": "17de8641aa0a115f6f23b3e15e2368498e6a2798bee7815e11e061ffa305121c",
+  "deployTx": "1a7f4a3edcc6e13a3cddbb27bb7077682dd194164a2e1f4c83dc476e3b9cf247",
+  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/1a7f4a3edcc6e13a3cddbb27bb7077682dd194164a2e1f4c83dc476e3b9cf247",
+  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CBD37QCPJD4QPK6G7N4HBOPOERG7QWUBHQMVUILI3TQKHOWBL2PKSGXL",
   "deployer": "GAHR34WCIIS4TQDGC362ETJSHXNLE6AF6ZDK3EPONNPFRIEXLWNOHYXQ",
   "deployerId": "umbra-deployer",
   "explorerBase": "https://stellar.expert/explorer/testnet",
-  "deployedAt": "2026-07-01T15:23:02Z",
-  "shieldTx": "d7398175c0802bea4ea4eb16e4e83dfb5f9856f0e68cbdacf97ee1f143b3b20e",
-  "transferTx": "623004131e50efd90811c6d7e05d910f5b2fa561337715a2bb2eea9b693e3c1f",
-  "shieldExplorerUrl": "https://stellar.expert/explorer/testnet/tx/d7398175c0802bea4ea4eb16e4e83dfb5f9856f0e68cbdacf97ee1f143b3b20e",
-  "transferExplorerUrl": "https://stellar.expert/explorer/testnet/tx/623004131e50efd90811c6d7e05d910f5b2fa561337715a2bb2eea9b693e3c1f",
+  "deployedAt": "2026-07-01T21:27:27Z",
   "merkleDepth": 6,
   "features": [
     "shield",
-    "withdraw (C1-bound)",
+    "withdraw / unshield (join-split: arbitrary public amount + private change, C1-bound)",
     "confidential transfer (join-split, hidden amounts + change)"
   ]
 }

@@ -195,10 +195,24 @@ class WalletStore {
     return note ? buildShieldInput(toNote(note)) : null;
   }
 
-  withdrawInput(commitment: bigint, recipientId: bigint): WithdrawInput | null {
+  /**
+   * Build the witness for a withdrawal with private change: spend the note under `commitment`,
+   * pay a PUBLIC `amount` out to `recipientId`, and keep the remainder as `change` (a fresh
+   * seed-derived note). 1-in/1-public-out/1-change; conservation (amount + change == value) is
+   * enforced. Only `amount` is public on-chain; the change value is hidden.
+   */
+  withdrawInput(
+    commitment: bigint,
+    recipientId: bigint,
+    amount: bigint,
+    change: { secret: bigint; value: bigint },
+  ): WithdrawInput | null {
     const note = this.notes.find((n) => noteCommitment(toNote(n)) === commitment);
     if (!note || note.leafIndex === null) return null;
-    return buildWithdrawInput(toNote(note), this.tree(), recipientField(recipientId));
+    return buildWithdrawInput(toNote(note), this.tree(), recipientField(recipientId), amount, {
+      secret: change.secret,
+      value: change.value,
+    });
   }
 
   /**

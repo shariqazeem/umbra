@@ -139,14 +139,14 @@ export default function WalletPage() {
       }
       void auditStore.log({
         kind: "shield",
-        amount: value.toString(),
+        amount: stroopsToXlm(value),
         asset: ASSET,
         direction: "in",
         commitment: String(commitment),
         leafIndex,
         txHash,
         explorerUrl: txHash ? EXPLORER_TX(txHash) : null,
-        disclosureNote: `Shielded ${value} ${ASSET} into the Umbra pool (private deposit).`,
+        disclosureNote: `Shielded ${stroopsToXlm(value)} ${ASSET} into the Umbra pool (private deposit).`,
       });
       setPhase("done");
     } catch (e) {
@@ -156,8 +156,14 @@ export default function WalletPage() {
   }
 
   async function doWithdraw(resolvePayout: () => string | null, kind: "send" | "withdraw") {
-    if (!spendable[0]) {
-      setMsg("No private balance yet — shield some funds first.");
+    const want = xlmToStroops(amount);
+    if (want <= 0n) {
+      setMsg("Enter an amount.");
+      setPhase("error");
+      return;
+    }
+    if (balance < want) {
+      setMsg(`Not enough private balance — you have ${stroopsToXlm(balance)} ${ASSET}.`);
       setPhase("error");
       return;
     }
@@ -170,16 +176,23 @@ export default function WalletPage() {
       // valid even if others have written to the pool since our last sync (reliability
       // on a shared pool — a stale tree would produce an unknown root).
       if (isChainConfigured() && wallet.signer) await syncFromChain();
-      // Spend the LARGEST note, not an arbitrary one. A whole-note withdraw cashes out one
-      // note in full; picking the biggest avoids grabbing dust (e.g. tiny leftover notes)
-      // and matches the user's intent to cash out their balance.
-      const note = walletStore.spendable().reduce<(typeof spendable)[number] | null>(
-        (best, n) => (best && best.value >= n.value ? best : n),
-        null,
-      );
-      if (!note) throw new Error("No spendable note found after syncing");
-      setLastAmount(stroopsToXlm(note.value));
+      // Pick the SMALLEST note that covers `want`. This is a join-split: we spend one note,
+      // pay `want` out publicly, and keep the remainder as a private change note — so the
+      // user can cash out any amount, not just a whole note. Smallest-covering keeps large
+      // notes intact and burns down small ones.
+      const pool = walletStore.spendable();
+      const note = pool
+        .filter((n) => n.value >= want)
+        .reduce<WalletNote | null>((best, n) => (best && best.value <= n.value ? best : n), null);
+      if (!note) {
+        const largest = pool.reduce((m, n) => (n.value > m ? n.value : m), 0n);
+        throw new Error(
+          `No single note covers ${stroopsToXlm(want)} ${ASSET} — each cash-out spends one note, and your largest is ${stroopsToXlm(largest)} ${ASSET}. Send a smaller amount, or shield a larger note.`,
+        );
+      }
+      setLastAmount(stroopsToXlm(want));
       const cm = noteCommitment({ secret: note.secret, value: note.value });
+      const changeValue = note.value - want;
 
       // C1 — bind the proof to its payee BEFORE proving. The withdrawal proof's
       // `recipient` public input is field(payout); on-chain the contract re-derives
@@ -190,7 +203,14 @@ export default function WalletPage() {
       if (isChainConfigured() && !payout) throw new Error("Enter a destination Stellar address");
       const recipient = payout ? await addressToField(payout) : BigInt("12345");
 
-      const input = walletStore.withdrawInput(cm, recipient);
+      // The change note (seed-derived secret, so it survives a same-device recovery). Its
+      // value is HIDDEN on-chain — only `want` is public. Must be created before proving
+      // because the proof commits to its commitment.
+      const change = walletStore.createNote(changeValue);
+      const input = walletStore.withdrawInput(cm, recipient, want, {
+        secret: change.note.secret,
+        value: changeValue,
+      });
       if (!input) throw new Error("couldn't build the proof for this note");
       const proof = await prover.run("withdraw", input as unknown as Record<string, unknown>);
       let txHash: string | null = null;
@@ -200,13 +220,14 @@ export default function WalletPage() {
         if (!payout) throw new Error("Enter a destination Stellar address");
         setLastTo(payout);
         setTxStep("signing");
-        const { hash } = await submitWithdraw(
+        const { hash, changeLeaf } = await submitWithdraw(
           {
             proof,
             root: BigInt(input.root),
             nullifier: BigInt(input.nullifier),
             recipient: BigInt(input.recipient),
             amount: BigInt(input.amount),
+            changeCommitment: BigInt(input.changeCommitment),
             to: payout,
           },
           wallet.signer,
@@ -214,13 +235,15 @@ export default function WalletPage() {
         );
         txHash = hash;
         walletStore.markSpent(cm);
+        // Track the change so it's immediately spendable; skip a zero-value change note.
+        if (changeValue > 0n) walletStore.observe(change.commitment, changeLeaf);
         setMsg(hash);
       } else {
         await sleep(1200);
       }
       void auditStore.log({
         kind,
-        amount: stroopsToXlm(note.value),
+        amount: stroopsToXlm(want),
         asset: ASSET,
         direction: "out",
         commitment: String(cm),
@@ -231,8 +254,8 @@ export default function WalletPage() {
         counterparty: payoutAddr,
         disclosureNote:
           kind === "send"
-            ? `Sent ${stroopsToXlm(note.value)} ${ASSET} privately to ${payoutAddr ?? "a recipient"}. (v1: an unlinkable withdraw-to-recipient — not yet a shielded→shielded transfer.)`
-            : `Unshielded ${stroopsToXlm(note.value)} ${ASSET} to your own address${payoutAddr ? ` ${payoutAddr}` : ""}.`,
+            ? `Sent ${stroopsToXlm(want)} ${ASSET} to ${payoutAddr ?? "a recipient"}. The amount is public; the link to your deposit is not. Any change stays private in the pool.`
+            : `Unshielded ${stroopsToXlm(want)} ${ASSET} to your own address${payoutAddr ? ` ${payoutAddr}` : ""}. Any change stays private in the pool.`,
       });
       setPhase("done");
     } catch (e) {
@@ -673,19 +696,30 @@ function ActionPanel(props: {
                 <p className="mt-1 font-mono text-2xl font-semibold text-foreground">{balance} <span className="text-base text-muted-foreground">{ASSET}</span></p>
               </div>
             )}
-            {(view === "shield" || view === "paylink" || view === "transfer") && (
-              <AmountField
-                label={view === "transfer" ? "Amount to send" : "Amount"}
-                suffix={ASSET}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            )}
+            <AmountField
+              label={
+                view === "transfer" || view === "send"
+                  ? "Amount to send"
+                  : view === "unshield"
+                    ? "Amount to cash out"
+                    : "Amount"
+              }
+              suffix={ASSET}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
             {view === "transfer" && (
               <p className="rounded-xl border border-[#FF3B00]/20 bg-[#FF3B00]/[0.04] px-4 py-3 text-sm leading-relaxed text-muted-foreground">
                 Send any amount — your <span className="text-foreground">change comes back to you</span>,
                 and both amounts are <span className="text-foreground">hidden on-chain</span>. Your
                 recipient gets a one-time claim link to receive it.
+              </p>
+            )}
+            {(view === "send" || view === "unshield") && (
+              <p className="rounded-xl bg-white/[0.04] px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                Cash out any amount — the <span className="text-foreground">amount is public</span>, but
+                it&rsquo;s unlinkable from your deposit, and any{" "}
+                <span className="text-foreground">change stays private</span> in the pool.
               </p>
             )}
             {view === "send" && (

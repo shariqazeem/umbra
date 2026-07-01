@@ -49,9 +49,12 @@ const cm = commitment(note);
 const tree = new MerkleTree();
 note.leafIndex = tree.insert(cm);
 
-// 2. Build the shield + withdraw circuit inputs.
+// 2. Build the shield + withdraw circuit inputs. Withdraw is a join-split: pay a PUBLIC
+// amount out to RECIPIENT and keep the remainder as a private change note.
 const shieldInput = buildShieldInput(note);
-const withdrawInput = buildWithdrawInput(note, tree, RECIPIENT);
+const WITHDRAW_AMT = 600n; // public withdrawal
+const withdrawChange = makeNote(AMOUNT - WITHDRAW_AMT); // 400 → private change
+const withdrawInput = buildWithdrawInput(note, tree, RECIPIENT, WITHDRAW_AMT, withdrawChange);
 
 writeFileSync(join(build, "shield_input.json"), JSON.stringify(shieldInput, null, 2));
 writeFileSync(join(build, "withdraw_input.json"), JSON.stringify(withdrawInput, null, 2));

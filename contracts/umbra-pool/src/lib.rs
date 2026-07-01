@@ -143,7 +143,16 @@ impl UmbraPool {
     ///
     /// Verifies inclusion under a known `root`, the `nullifier` derivation, recipient
     /// binding, and amount conservation; rejects spent nullifiers; pays `to`; emits
-    /// WithdrawalCompleted. Public inputs (pinned order): [root, nullifier, recipient, amount].
+    /// Shielded→public withdrawal with PRIVATE CHANGE (join-split, 1-in / 1-public-out / 1-change).
+    ///
+    /// Verifies the withdraw proof (inclusion of the spent note, its nullifier, a well-formed
+    /// change commitment, value conservation `value == amount + change`, and a 64-bit range on
+    /// every amount), spends the nullifier, inserts the change commitment as a new private note
+    /// that stays in the pool, and pays the PUBLIC `amount` out to `to`. Only `amount` is public;
+    /// the change value is hidden. This is the arbitrary-amount cash-out.
+    ///
+    /// Public inputs (pinned order): [root, nullifier, recipient, amount, change_commitment].
+    /// Emits WithdrawalCompleted; returns the change note's leaf index (for the sender to observe).
     pub fn withdraw(
         env: Env,
         proof: Proof,
@@ -151,12 +160,13 @@ impl UmbraPool {
         nullifier: BytesN<32>,
         recipient: BytesN<32>,
         amount: i128,
+        change_commitment: BytesN<32>,
         to: Address,
-    ) -> Result<(), Error> {
+    ) -> Result<u32, Error> {
         let s = env.storage().instance();
         let vk: VerifyingKey = s.get(&DataKey::VkWithdraw).ok_or(Error::NotInitialized)?;
 
-        // M1: reject non-positive amounts.
+        // M1: reject non-positive public amounts.
         if amount <= 0 {
             return Err(Error::InvalidAmount);
         }
@@ -167,6 +177,7 @@ impl UmbraPool {
             nullifier.clone(),
             recipient.clone(),
             amount_to_fr_bytes(&env, amount),
+            change_commitment.clone(),
         ];
         if !verify_groth16(&env, &vk, &proof, &public_inputs) {
             return Err(Error::InvalidProof);
@@ -184,6 +195,12 @@ impl UmbraPool {
             return Err(Error::UnknownRoot);
         }
 
+        // The fixed-depth tree must have room for the change commitment.
+        let next: u32 = s.get(&DataKey::NextIndex).unwrap_or(0);
+        if next + 1 > (1u32 << (MERKLE_DEPTH as u32)) {
+            return Err(Error::TreeFull);
+        }
+
         // Spend exactly once.
         let nf_key = DataKey::Nullifier(nullifier.clone());
         if env.storage().persistent().has(&nf_key) {
@@ -192,13 +209,17 @@ impl UmbraPool {
         env.storage().persistent().set(&nf_key, &true);
         env.storage().persistent().extend_ttl(&nf_key, 100_000, 1_000_000);
 
-        // Pay out.
+        // Insert the change note (value stays in the pool), then pay the public amount out.
+        let change_leaf = Self::insert_commitment(&env, &change_commitment);
+
         let tk: Address = s.get(&DataKey::Token).unwrap();
         token::Client::new(&env, &tk).transfer(&env.current_contract_address(), &to, &amount);
 
-        env.events()
-            .publish((Symbol::new(&env, "WithdrawalCompleted"),), (nullifier, to, amount));
-        Ok(())
+        env.events().publish(
+            (Symbol::new(&env, "WithdrawalCompleted"),),
+            (nullifier, to, amount, change_commitment, change_leaf),
+        );
+        Ok(change_leaf)
     }
 
     /// Confidential shielded→shielded transfer (join-split, 1-in / 2-out).

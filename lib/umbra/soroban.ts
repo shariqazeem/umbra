@@ -160,6 +160,12 @@ export async function submitShield(
   return { hash: res.hash, leafIndex };
 }
 
+/**
+ * Withdrawal with private change (join-split). Spends the input note, pays a PUBLIC `amount`
+ * out to `to`, and inserts the change commitment as a new private note (value hidden). Arg
+ * order pins the contract signature: [proof, root, nullifier, recipient, amount,
+ * change_commitment, to]. Returns the change note's on-chain leaf index.
+ */
 export async function submitWithdraw(
   args: {
     proof: Groth16ProofJson;
@@ -167,11 +173,12 @@ export async function submitWithdraw(
     nullifier: bigint;
     recipient: bigint;
     amount: bigint;
+    changeCommitment: bigint;
     to: string;
   },
   signer: Signer,
   onStatus?: (p: SubmitPhase) => void,
-): Promise<{ hash: string }> {
+): Promise<{ hash: string; changeLeaf: number }> {
   const sdk = await import("@stellar/stellar-sdk");
   const res = await invoke(
     sdk,
@@ -182,12 +189,15 @@ export async function submitWithdraw(
       sdk.nativeToScVal(bytes32(args.nullifier)),
       sdk.nativeToScVal(bytes32(args.recipient)),
       sdk.nativeToScVal(args.amount, { type: "i128" }),
+      sdk.nativeToScVal(bytes32(args.changeCommitment)),
       new sdk.Address(args.to).toScVal(),
     ],
     signer,
     onStatus,
   );
-  return { hash: res.hash };
+  // withdraw() returns the change note's leaf index so the sender can observe/spend it.
+  const changeLeaf = res.returnValue != null ? Number(sdk.scValToNative(res.returnValue)) : 0;
+  return { hash: res.hash, changeLeaf };
 }
 
 /**

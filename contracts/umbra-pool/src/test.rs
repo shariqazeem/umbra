@@ -16,6 +16,10 @@ use crate::{UmbraPool, UmbraPoolClient};
 use groth16_verifier::{Proof, VerifyingKey};
 
 const AMOUNT: i128 = 1000;
+// The withdraw fixture is a join-split: pay WITHDRAW_AMT out publicly, keep the change
+// (AMOUNT - WITHDRAW_AMT) as a private note in the pool. Must match circuits/scripts/gen-fixtures.ts.
+const WITHDRAW_AMT: i128 = 600;
+const CHANGE_AMT: i128 = AMOUNT - WITHDRAW_AMT;
 
 fn build_dir() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../circuits/build")
@@ -73,7 +77,6 @@ struct Ctx<'a> {
     env: Env,
     client: UmbraPoolClient<'a>,
     token: token::TokenClient<'a>,
-    depositor: Address,
     withdraw: Fixture,
     transfer: Fixture,
 }
@@ -112,12 +115,17 @@ fn setup<'a>() -> Ctx<'a> {
     assert_eq!(leaf, 0);
     assert_eq!(token.balance(&id), AMOUNT, "pool holds the shielded funds");
 
-    Ctx { env, client, token, depositor, withdraw, transfer }
+    Ctx { env, client, token, withdraw, transfer }
 }
 
-// withdraw publics = [root, nullifier, recipient, amount]
-fn parts(f: &Fixture) -> (BytesN<32>, BytesN<32>, BytesN<32>) {
-    (f.publics.get_unchecked(0), f.publics.get_unchecked(1), f.publics.get_unchecked(2))
+// withdraw publics = [root, nullifier, recipient, amount, change_commitment]
+fn parts(f: &Fixture) -> (BytesN<32>, BytesN<32>, BytesN<32>, BytesN<32>) {
+    (
+        f.publics.get_unchecked(0),
+        f.publics.get_unchecked(1),
+        f.publics.get_unchecked(2),
+        f.publics.get_unchecked(4),
+    )
 }
 
 // The address the regenerated withdraw fixture is bound to (C1: recipient == field(to)).
@@ -154,14 +162,22 @@ fn happy_path_shield_then_withdraw() {
         return;
     }
     let ctx = setup();
-    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+    let (root, nullifier, recipient, change) = parts(&ctx.withdraw);
     let to = payee(&ctx.env);
 
-    ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &to);
+    let before = ctx.client.next_index();
+    let change_leaf =
+        ctx.client
+            .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
 
-    assert_eq!(ctx.token.balance(&to), AMOUNT, "recipient received the funds");
-    assert_eq!(ctx.token.balance(&ctx.client.address), 0, "pool drained");
+    assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "recipient received the public amount");
+    assert_eq!(
+        ctx.token.balance(&ctx.client.address),
+        CHANGE_AMT,
+        "the change value stays in the pool"
+    );
+    assert_eq!(change_leaf, before, "change note inserted at the next slot");
+    assert_eq!(ctx.client.next_index(), before + 1, "one change commitment inserted");
     assert!(ctx.client.is_spent(&nullifier), "nullifier marked spent");
 }
 
@@ -174,21 +190,21 @@ fn wrong_payee_rejected() {
         return;
     }
     let ctx = setup();
-    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+    let (root, nullifier, recipient, change) = parts(&ctx.withdraw);
 
     // Attacker observes the proof and tries to redirect the payout to themselves.
     let attacker = Address::generate(&ctx.env);
-    let stolen = ctx
-        .client
-        .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &attacker);
+    let stolen = ctx.client.try_withdraw(
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &attacker,
+    );
     assert!(stolen.is_err(), "a proof bound to payee P must not pay a different address");
     assert!(!ctx.client.is_spent(&nullifier), "a rejected redirect must not burn the nullifier");
 
     // The real (bound) payee can still withdraw.
     let to = payee(&ctx.env);
     ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &to);
-    assert_eq!(ctx.token.balance(&to), AMOUNT, "the bound payee is paid");
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
+    assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "the bound payee is paid");
 }
 
 // Confidential transfer: spend the input note into two output commitments. Amounts are
@@ -229,15 +245,15 @@ fn double_spend_rejected() {
         return;
     }
     let ctx = setup();
-    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+    let (root, nullifier, recipient, change) = parts(&ctx.withdraw);
     let to = payee(&ctx.env);
 
     ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &to);
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
     // Second spend of the same nullifier must fail.
-    let again = ctx
-        .client
-        .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &AMOUNT, &to);
+    let again = ctx.client.try_withdraw(
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to,
+    );
     assert!(again.is_err(), "double spend must be rejected");
 }
 
@@ -248,7 +264,7 @@ fn invalid_proof_rejected() {
         return;
     }
     let ctx = setup();
-    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+    let (root, nullifier, recipient, change) = parts(&ctx.withdraw);
     let to = Address::generate(&ctx.env);
 
     // Tamper one byte of proof.a → the on-chain pairing check must fail.
@@ -259,7 +275,7 @@ fn invalid_proof_rejected() {
         b: ctx.withdraw.proof.b.clone(),
         c: ctx.withdraw.proof.c.clone(),
     };
-    let res = ctx.client.try_withdraw(&bad, &root, &nullifier, &recipient, &AMOUNT, &to);
+    let res = ctx.client.try_withdraw(&bad, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
     assert!(res.is_err(), "tampered proof must be rejected on-chain");
 }
 
@@ -270,7 +286,7 @@ fn wrong_recipient_rejected() {
         return;
     }
     let ctx = setup();
-    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+    let (root, nullifier, recipient, change) = parts(&ctx.withdraw);
     let to = Address::generate(&ctx.env);
 
     // Use a DIFFERENT bound recipient than the proof was generated for. The public
@@ -279,7 +295,9 @@ fn wrong_recipient_rejected() {
     r[31] ^= 0x01;
     let wrong = BytesN::from_array(&ctx.env, &r);
 
-    let res = ctx.client.try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &wrong, &AMOUNT, &to);
+    let res = ctx.client.try_withdraw(
+        &ctx.withdraw.proof, &root, &nullifier, &wrong, &WITHDRAW_AMT, &change, &to,
+    );
     assert!(res.is_err(), "a proof bound to recipient R must not pay recipient R'");
 }
 
@@ -290,15 +308,15 @@ fn amount_mismatch_rejected() {
         return;
     }
     let ctx = setup();
-    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+    let (root, nullifier, recipient, change) = parts(&ctx.withdraw);
     let to = Address::generate(&ctx.env);
 
-    // The proof binds `amount` as a public input (amount conservation: amount == value).
+    // The proof binds `amount` as a public input (conservation: amount + change == value).
     // Asking to withdraw a DIFFERENT amount changes the public input → verification fails,
     // so a proof for amount A can never authorize withdrawing A+1.
-    let res = ctx
-        .client
-        .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &(AMOUNT + 1), &to);
+    let res = ctx.client.try_withdraw(
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &(WITHDRAW_AMT + 1), &change, &to,
+    );
     assert!(res.is_err(), "a proof for amount A must not authorize withdrawing A+1");
 }
 
@@ -310,7 +328,7 @@ fn nonpositive_amount_rejected() {
         return;
     }
     let ctx = setup();
-    let (root, nullifier, recipient) = parts(&ctx.withdraw);
+    let (root, nullifier, recipient, change) = parts(&ctx.withdraw);
     let to = Address::generate(&ctx.env);
     let shield = load(&ctx.env, "shield");
     let commitment = shield.publics.get_unchecked(0);
@@ -322,13 +340,15 @@ fn nonpositive_amount_rejected() {
             "shield must reject non-positive amount"
         );
         assert!(
-            ctx.client.try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &bad, &to).is_err(),
+            ctx.client
+                .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &bad, &change, &to)
+                .is_err(),
             "withdraw must reject non-positive amount"
         );
     }
 }
 
-// M2 — a shield is rejected once the fixed-depth tree is full (depth 8 → 256 leaves).
+// M2 — a shield is rejected once the fixed-depth tree is full (depth 6 → 64 leaves).
 #[test]
 fn tree_full_rejected() {
     if !fixtures_present() {
@@ -340,10 +360,10 @@ fn tree_full_rejected() {
     let commitment = shield.publics.get_unchecked(0);
     let depositor = Address::generate(&ctx.env);
 
-    // Force NextIndex to capacity (2^8 = 256) without needing 256 real proofs.
+    // Force NextIndex to capacity (2^6 = 64) without needing 64 real proofs.
     let id = ctx.client.address.clone();
     ctx.env.as_contract(&id, || {
-        ctx.env.storage().instance().set(&crate::DataKey::NextIndex, &256u32);
+        ctx.env.storage().instance().set(&crate::DataKey::NextIndex, &64u32);
     });
 
     let res = ctx.client.try_shield(&shield.proof, &commitment, &AMOUNT, &depositor);
