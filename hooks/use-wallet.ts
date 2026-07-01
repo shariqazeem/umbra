@@ -4,7 +4,7 @@
 // (Freighter direct, or a Stellar Wallets Kit wallet — the app never sees the secret);
 // falls back to an in-app testnet key. The wallet connection is global (survives
 // navigation); the key is ephemeral per page.
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { walletSession, type SessionState } from "@/lib/umbra/wallet-session";
 import type { Signer } from "@/lib/umbra/signer";
 
@@ -42,6 +42,12 @@ export function useWallet(): WalletState {
   const [key, setKey] = useState("");
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Restore a previously-connected wallet on load, so a page refresh keeps you connected
+  // (the session is otherwise in-memory only). Guarded to run once inside walletSession.
+  useEffect(() => {
+    void walletSession.restore();
+  }, []);
 
   const connect = useCallback(async () => {
     setError(null);

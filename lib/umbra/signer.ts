@@ -34,6 +34,26 @@ export async function connectFreighter(): Promise<string> {
   return r.address;
 }
 
+/**
+ * The Freighter address if the site is already authorized — WITHOUT prompting. Used to
+ * silently restore a connection on page load. Returns null if Freighter is absent, locked,
+ * or hasn't granted this site access.
+ */
+export async function freighterAddressIfAllowed(): Promise<string | null> {
+  try {
+    const { isConnected, isAllowed, getAddress } = await freighter();
+    const conn = await isConnected();
+    if (!conn?.isConnected) return null;
+    const allowed = await isAllowed();
+    if (!allowed?.isAllowed) return null;
+    const r = await getAddress();
+    if ("error" in r && r.error) return null;
+    return r.address || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Ask Freighter to sign a transaction XDR; returns the signed XDR. */
 export async function freighterSign(
   xdr: string,
