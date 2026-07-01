@@ -112,10 +112,10 @@ export const READINESS: ReadinessItem[] = [
   { label: "Mainnet deployment", status: "gated", detail: "Not deployed. Gated behind the security blockers below; flags default to OFF." },
   { label: "Trusted setup", status: "required", detail: "Groth16 needs an MPC ceremony — or a migration to a transparent proof system (UltraHonk)." },
   { label: "Independent audit", status: "required", detail: "Contract, circuits, and the BLS verifier path must be audited before real assets." },
-  { label: "Amount privacy", status: "roadmap", detail: "Today amounts are PUBLIC (link privacy, not confidential amounts). CT-compatible path." },
+  { label: "Amount privacy", status: "roadmap", detail: "Private sends already hide amounts (join-split, hidden on-chain) and withdrawals keep private change; shield + the withdrawn amount stay public. Full confidential amounts on every path is roadmap." },
   { label: "Fee-privacy relayer", status: "roadmap", detail: "The fee payer is visible on-chain; a relayer removes that correlation." },
   { label: "Production indexer", status: "roadmap", detail: "Scalable note discovery from the deploy ledger onward." },
-  { label: "Merkle depth 20", status: "required", detail: "Depth 8 (256 notes) today; depth 20 (~1M) needs a recompile + new ceremony." },
+  { label: "Merkle depth", status: "required", detail: "Depth 6 (64 notes) today — sized so two inserts fit the per-tx budget; a production depth (e.g. 20, ~1M notes) needs a recompile + new ceremony." },
 ];
 
 export const BEFORE_REAL_ASSETS: string[] = [

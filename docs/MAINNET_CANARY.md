@@ -15,8 +15,9 @@ XLM** and **pulling the trigger**.
 ## What's already done
 
 - Contract hardened: **C1** (withdrawals bound to the payout address), **H1** (atomic
-  constructor init), **M1/M2** (amount + tree-full guards). `cargo test` 9/9, live on
-  testnet (pool `CCBNNCXZ…`), C1 rejection verified on-chain (`Error #8`).
+  constructor init), **M1/M2** (amount + tree-full guards), plus the **confidential transfer**
+  and **change-withdraw** join-splits. `cargo test` **10/10** against the real BLS12-381 host,
+  live on testnet (pool `CBD37QCP…`), C1 rejection verified on-chain.
 - `infra/deploy/deploy-mainnet.sh` — one-shot mainnet deploy (build → upload → resolve
   native XLM SAC → deploy via constructor), with a typed confirmation and a funded-deployer
   check. Idempotent; `--force` to redeploy.
@@ -25,6 +26,26 @@ XLM** and **pulling the trigger**.
 - The browser flows (shield / unshield / send / receive, and cross-session recovery from the
   same wallet/key) are **network-agnostic** and already proven on testnet — they behave
   identically on mainnet.
+
+## What it costs (measured on-chain)
+
+Soroban prices testnet and mainnet identically, so these are our **real testnet fees** — a
+faithful mainnet estimate:
+
+| Action | Fee |
+| --- | --- |
+| Deploy pool (constructor) | **0.31 XLM** (measured) |
+| WASM upload (one-time) | ~1–2 XLM |
+| Native XLM SAC | ~0 (already exists on mainnet) |
+| Deployer base reserve | ~1–2 XLM (held, not spent) |
+| **→ Go live (one-time)** | **≈ 4–5 XLM** |
+| Shield | **0.08 XLM** (measured) |
+| Private send | **0.04 XLM** (measured) |
+| Unshield | ~0.06–0.09 XLM (verify + insert + payout) |
+
+**~5 XLM to deploy, pennies per private action.** Fund the deployer with **~10 XLM** to be
+comfortable (fees + your capped canary deposit + a storage-rent buffer). Money is not the
+barrier — the honest risk statement above is.
 
 ## Go-live steps
 

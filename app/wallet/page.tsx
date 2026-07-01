@@ -30,6 +30,8 @@ import { xlmToStroops, stroopsToXlm } from "@/lib/umbra/units";
 import { auditStore } from "@/lib/umbra/audit-store";
 import { DisclosureKit } from "@/components/umbra/disclosure-kit";
 import { TxProgress, type TxStep } from "@/components/umbra/tx-progress";
+import { ProofViz } from "@/components/umbra/proof-viz";
+import { AnimatedNumber } from "@/components/umbra/animated-number";
 import { deriveSeed } from "@/lib/umbra/note-derivation";
 import { recoverFromChain } from "@/lib/umbra/recovery";
 import type { Signer } from "@/lib/umbra/signer";
@@ -462,7 +464,7 @@ function Home({
           <Pill tone="signal"><Lock className="h-3 w-3" /> Private</Pill>
         </div>
         <p className="mt-2 font-mono text-5xl font-semibold tracking-tight text-foreground">
-          {balance} <span className="text-2xl text-muted-foreground">{ASSET}</span>
+          <AnimatedNumber value={balance} /> <span className="text-2xl text-muted-foreground">{ASSET}</span>
         </p>
       </Card>
 
@@ -686,14 +688,17 @@ function ActionPanel(props: {
           view === "paylink" ? (
             <CryptoTimeline steps={SHIELD_STEPS} running done={false} />
           ) : (
-            <TxProgress step={txStep} prover={prover} chain={isChainConfigured()} />
+            <div className="flex flex-col gap-6">
+              <ProofViz stage={prover.stage} />
+              <TxProgress step={txStep} prover={prover} chain={isChainConfigured()} />
+            </div>
           )
         ) : (
           <div className="flex flex-col gap-5">
             {(view === "send" || view === "unshield" || view === "transfer") && (
               <div className="rounded-xl bg-white/[0.04] px-5 py-4">
                 <p className="text-sm text-muted-foreground">Private balance</p>
-                <p className="mt-1 font-mono text-2xl font-semibold text-foreground">{balance} <span className="text-base text-muted-foreground">{ASSET}</span></p>
+                <p className="mt-1 font-mono text-2xl font-semibold text-foreground"><AnimatedNumber value={balance} /> <span className="text-base text-muted-foreground">{ASSET}</span></p>
               </div>
             )}
             <AmountField
