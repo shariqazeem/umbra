@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ExternalLink, KeyRound, Loader2, Wallet, X } from "lucide-react";
 import { Button, Pill } from "@/components/umbra/ui";
 import { freighterInstalled } from "@/lib/umbra/signer";
@@ -71,6 +72,8 @@ function Connected({ wallet }: { wallet: WalletState }) {
 function WalletModal({ wallet, onClose }: { wallet: WalletState; onClose: () => void }) {
   const [avail, setAvail] = useState<Record<string, boolean | undefined>>({});
   const [showKey, setShowKey] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     let alive = true;
@@ -95,9 +98,13 @@ function WalletModal({ wallet, onClose }: { wallet: WalletState; onClose: () => 
 
   const onConnect = (w: WalletDef) => (w.via === "direct" ? wallet.connect() : wallet.connectKit(w.id));
 
-  return (
+  if (!mounted) return null;
+  // Portal to <body> so `fixed` anchors to the viewport, not a transformed ancestor
+  // (the Shell's entrance transform / smooth-scroll wrapper) — otherwise the dialog
+  // lands mid-page and you have to scroll to it.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -185,6 +192,7 @@ function WalletModal({ wallet, onClose }: { wallet: WalletState; onClose: () => 
 
         {wallet.error && <p className="mt-3 text-center text-xs text-destructive">{wallet.error}</p>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
