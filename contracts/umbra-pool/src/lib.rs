@@ -201,32 +201,29 @@ impl UmbraPool {
         Ok(())
     }
 
-    /// Confidential shielded→shielded transfer (join-split, 1-in / 2-out).
+    /// Confidential shielded→shielded transfer ("private send", 1-in / 1-out).
     ///
     /// Verifies the transfer proof (which proves, in zero knowledge, inclusion of the
-    /// spent input note, its nullifier, two well-formed output commitments, value
-    /// conservation, and 64-bit range on every amount), spends the input nullifier, and
-    /// inserts the two output commitments. **No amount is revealed and NO token moves** —
-    /// value stays in the pool, re-noted. Public inputs (pinned order):
-    /// [root, nullifier, out_commitment1, out_commitment2].
+    /// spent input note, its nullifier, a well-formed output commitment carrying the same
+    /// HIDDEN value, and a 64-bit range on that value), spends the input nullifier, and
+    /// inserts the output commitment. **No amount is revealed and NO token moves** — value
+    /// stays in the pool, re-noted to the recipient. Public inputs (pinned order):
+    /// [root, nullifier, out_commitment].
+    ///
+    /// 1-out (rather than a 2-out join-split with change) is a deliberate fit to Stellar's
+    /// per-transaction compute budget, which allows the Groth16/BLS verify plus a single
+    /// Poseidon Merkle insert; two inserts exceed it at this depth. See the circuit header.
     pub fn transfer(
         env: Env,
         proof: Proof,
         root: BytesN<32>,
         nullifier: BytesN<32>,
-        out_commitment1: BytesN<32>,
-        out_commitment2: BytesN<32>,
-    ) -> Result<(u32, u32), Error> {
+        out_commitment: BytesN<32>,
+    ) -> Result<u32, Error> {
         let s = env.storage().instance();
         let vk: VerifyingKey = s.get(&DataKey::VkTransfer).ok_or(Error::NotInitialized)?;
 
-        let public_inputs = vec![
-            &env,
-            root.clone(),
-            nullifier.clone(),
-            out_commitment1.clone(),
-            out_commitment2.clone(),
-        ];
+        let public_inputs = vec![&env, root.clone(), nullifier.clone(), out_commitment.clone()];
         if !verify_groth16(&env, &vk, &proof, &public_inputs) {
             return Err(Error::InvalidProof);
         }
@@ -236,15 +233,15 @@ impl UmbraPool {
             return Err(Error::UnknownRoot);
         }
 
-        // The fixed-depth tree must have room for both output commitments.
+        // The fixed-depth tree must have room for the output commitment.
         let next: u32 = s.get(&DataKey::NextIndex).unwrap_or(0);
-        if next + 2 > (1u32 << (MERKLE_DEPTH as u32)) {
+        if next >= (1u32 << (MERKLE_DEPTH as u32)) {
             return Err(Error::TreeFull);
         }
 
         // Spend the input note exactly once. No address auth: the proof IS the
-        // authorization (only the note owner knows the secret), and the outputs are
-        // fixed commitments in the proof, so a relayer/front-runner cannot redirect value.
+        // authorization (only the note owner knows the secret), and the output is a fixed
+        // commitment in the proof, so a relayer/front-runner cannot redirect value.
         let nf_key = DataKey::Nullifier(nullifier.clone());
         if env.storage().persistent().has(&nf_key) {
             return Err(Error::NullifierAlreadySpent);
@@ -252,15 +249,12 @@ impl UmbraPool {
         env.storage().persistent().set(&nf_key, &true);
         env.storage().persistent().extend_ttl(&nf_key, 100_000, 1_000_000);
 
-        // Insert both output commitments (value never leaves the pool).
-        let leaf1 = Self::insert_commitment(&env, &out_commitment1);
-        let leaf2 = Self::insert_commitment(&env, &out_commitment2);
+        // Insert the output commitment (value never leaves the pool).
+        let leaf = Self::insert_commitment(&env, &out_commitment);
 
-        env.events().publish(
-            (Symbol::new(&env, "TransferCompleted"),),
-            (nullifier, out_commitment1, out_commitment2, leaf1, leaf2),
-        );
-        Ok((leaf1, leaf2))
+        env.events()
+            .publish((Symbol::new(&env, "TransferCompleted"),), (nullifier, out_commitment, leaf));
+        Ok(leaf)
     }
 
     // --- read-only views -----------------------------------------------------

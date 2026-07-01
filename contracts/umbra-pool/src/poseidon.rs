@@ -33,6 +33,29 @@ fn pow5(bls: &Bls12_381, x: &Fr) -> Fr {
 pub fn poseidon2(env: &Env, a: &Fr, b: &Fr) -> Fr {
     let bls = env.crypto().bls12_381();
     let zero = fr_const(env, &[0u8; 32]);
+
+    // Deserialize the MDS matrix to Fr ONCE. It is reused in every round, so doing it
+    // inside the round loop cost T*T host `Fr::from_bytes` calls per round (9 × 65 = 585
+    // per hash) of pure overhead. Precomputing collapses that to 9 — the single biggest
+    // on-chain cost win for the incremental tree (shield/withdraw/transfer all benefit).
+    let mds: [[Fr; T]; T] = [
+        [
+            fr_const(env, &POSEIDON_M[0]),
+            fr_const(env, &POSEIDON_M[1]),
+            fr_const(env, &POSEIDON_M[2]),
+        ],
+        [
+            fr_const(env, &POSEIDON_M[3]),
+            fr_const(env, &POSEIDON_M[4]),
+            fr_const(env, &POSEIDON_M[5]),
+        ],
+        [
+            fr_const(env, &POSEIDON_M[6]),
+            fr_const(env, &POSEIDON_M[7]),
+            fr_const(env, &POSEIDON_M[8]),
+        ],
+    ];
+
     let mut state: [Fr; T] = [zero.clone(), a.clone(), b.clone()];
     let rounds = POSEIDON_RF + POSEIDON_RP;
 
@@ -51,13 +74,12 @@ pub fn poseidon2(env: &Env, a: &Fr, b: &Fr) -> Fr {
         } else {
             state[0] = pow5(&bls, &state[0]);
         }
-        // MDS mix.
+        // MDS mix (reusing the precomputed matrix).
         let mut next: [Fr; T] = [zero.clone(), zero.clone(), zero.clone()];
         for i in 0..T {
             let mut acc = zero.clone();
             for j in 0..T {
-                let m = fr_const(env, &POSEIDON_M[i * T + j]);
-                acc = bls.fr_add(&acc, &bls.fr_mul(&m, &state[j]));
+                acc = bls.fr_add(&acc, &bls.fr_mul(&mds[i][j], &state[j]));
             }
             next[i] = acc;
         }

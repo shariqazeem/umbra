@@ -169,13 +169,14 @@ main() {
   ok "token (native SAC): $UMBRA_TOKEN"
 
   step "deploy umbra_pool (constructor binds token + verifying keys — atomic, H1)"
-  local vk_shield vk_withdraw dlog
+  local vk_shield vk_withdraw vk_transfer dlog
   vk_shield="$(jq -c '.vk' "$BUILD/shield_soroban.json")"
   vk_withdraw="$(jq -c '.vk' "$BUILD/withdraw_soroban.json")"
+  vk_transfer="$(jq -c '.vk' "$BUILD/transfer_soroban.json")"
   dlog="$(mktemp)"
   POOL="$(stellar contract deploy --wasm-hash "$WASM_HASH" \
             --source-account "$UMBRA_DEPLOYER" --network "$UMBRA_NETWORK" \
-            -- --token "$UMBRA_TOKEN" --vk_shield "$vk_shield" --vk_withdraw "$vk_withdraw" 2>"$dlog")"
+            -- --token "$UMBRA_TOKEN" --vk_shield "$vk_shield" --vk_withdraw "$vk_withdraw" --vk_transfer "$vk_transfer" 2>"$dlog")"
   cat "$dlog" >&2
   DEPLOY_TX="$(extract_txhash "$dlog")"
   rm -f "$dlog"
