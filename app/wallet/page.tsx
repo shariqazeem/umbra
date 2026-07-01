@@ -170,7 +170,13 @@ export default function WalletPage() {
       // valid even if others have written to the pool since our last sync (reliability
       // on a shared pool — a stale tree would produce an unknown root).
       if (isChainConfigured() && wallet.signer) await syncFromChain();
-      const note = walletStore.spendable()[0];
+      // Spend the LARGEST note, not an arbitrary one. A whole-note withdraw cashes out one
+      // note in full; picking the biggest avoids grabbing dust (e.g. tiny leftover notes)
+      // and matches the user's intent to cash out their balance.
+      const note = walletStore.spendable().reduce<(typeof spendable)[number] | null>(
+        (best, n) => (best && best.value >= n.value ? best : n),
+        null,
+      );
       if (!note) throw new Error("No spendable note found after syncing");
       setLastAmount(stroopsToXlm(note.value));
       const cm = noteCommitment({ secret: note.secret, value: note.value });
