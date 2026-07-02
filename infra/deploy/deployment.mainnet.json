@@ -1,0 +1,25 @@
+{
+  "network": "mainnet",
+  "networkPassphrase": "Public Global Stellar Network ; September 2015",
+  "contractIds": {
+    "pool": "CBWIV33FQ27LOTA2LGM5SVL2WHAMBFLZTYOZXWKEMDBFCLU4BNIUQOLU",
+    "token": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA"
+  },
+  "wasmHash": "968eb0db459a2b610a32079b0b5c66b9fc768747474b704c0a8bf339cee79334",
+  "uploadTx": "b441cd13fa30b53a249d717afe1040c51c21c47f8ba5615db7eed34b5e149875",
+  "deployTx": "f3d0a294bef424da8dce0c6ce7e4294d673bd496b22a05a57f4214f7409f5f62",
+  "deployer": "GDGVKQBH5QUFULVRIMAHDYXZ3IJWPAZWKOCCHQSZJ3LPA64AHZMFMFE4",
+  "explorerBase": "https://stellar.expert/explorer/public",
+  "poolContractUrl": "https://stellar.expert/explorer/public/contract/CBWIV33FQ27LOTA2LGM5SVL2WHAMBFLZTYOZXWKEMDBFCLU4BNIUQOLU",
+  "merkleDepth": 13,
+  "capacityNotes": 8192,
+  "canaryCapXlm": 5,
+  "status": "experimental invite-only capped canary — self-reviewed, NOT audited, single-contributor trusted setup",
+  "deployedAt": "2026-07-02T21:37:54Z",
+  "demoTxs": {
+    "note": "Full private-send cycle, real on Stellar MAINNET at depth 13. Every entrypoint verified live.",
+    "shield": "9970804ed373ac17f87ba92d1aaca7b6dc25abb7144438974a492619e40a7f80",
+    "transfer": "0a65cf2814985086c1f628a16a3ad9fdc3a6e5df8e4c98aa3849b3bc0cb62c08",
+    "claim": "5e539120be8389061b4c9d26bdd774af34b1da21644b5c7cbbbfcf04be5679f8"
+  }
+}

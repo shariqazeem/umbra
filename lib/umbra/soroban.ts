@@ -14,6 +14,16 @@ export type { Signer };
 
 type Sdk = typeof import("@stellar/stellar-sdk");
 
+// Inclusion (bid) fee in stroops. Mainnet surge-prices this well above the 100-stroop base
+// (observed p50 ~7k, max ~100k), so a testnet-style BASE_FEE tx is rejected with
+// TxInsufficientFee. Bid high enough to land on mainnet; testnet keeps the base. Overridable
+// via NEXT_PUBLIC_UMBRA_INCLUSION_FEE. (The large resource fee is added on top by simulation.)
+function inclusionFee(): string {
+  const override = process.env.NEXT_PUBLIC_UMBRA_INCLUSION_FEE;
+  if (override && override.trim()) return override.trim();
+  return UMBRA_CONFIG.networkPassphrase.startsWith("Public Global") ? "1000000" : "100";
+}
+
 function g1Bytes(p: string[]): Uint8Array {
   if (BigInt(p[2]!) !== 1n) throw new Error("expected affine G1 (z=1) from snarkjs");
   return g1ToSoroban(G1Point.fromAffine({ x: BigInt(p[0]!), y: BigInt(p[1]!) }));
@@ -94,7 +104,7 @@ async function invoke(
   const contract = new sdk.Contract(UMBRA_CONFIG.poolContractId);
 
   const built = new sdk.TransactionBuilder(account, {
-    fee: sdk.BASE_FEE,
+    fee: inclusionFee(),
     networkPassphrase: UMBRA_CONFIG.networkPassphrase,
   })
     .addOperation(contract.call(method, ...args))
