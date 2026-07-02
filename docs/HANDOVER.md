@@ -233,15 +233,37 @@ the whole tree from chain (used by recovery).
 
 **Real today:** real Groth16 verification on-chain (not stubbed); C1/H1/M1/M2 hardened and
 covered by tests that run against the **real BLS12-381 host**; non-custodial keys; nullifier
-double-spend protection; recipient binding.
+double-spend protection; recipient binding; non-canonical public inputs rejected.
+
+**AI audit (Fable 5), July 2026 — 3 surfaces, both Criticals found and fixed:**
+An adversarial review by three independent Fable 5 agents (contract, circuits, verifier +
+encoding) found **two Critical bugs**, both since fixed, re-verified, and live on-chain:
+- **C-A · Non-canonical nullifier double-spend (theft).** `Fr::from_bytes` reduces mod r, so
+  `n` and `n+r` are the same scalar (a valid proof verifies for both) but different raw bytes,
+  and the pool keyed the nullifier set on raw bytes → replay a spent proof with `n+r` and get
+  paid twice; on `transfer` (no auth) anyone could do it → insolvency. **Fix:** a canonical-form
+  gate in `verify_groth16` rejecting any public input ≥ r. (commit `af5007f`)
+- **C-B · Tree-full stuck funds (liveness).** Every spend inserted a leaf and gated on capacity,
+  so once the 64-leaf tree filled, all withdraw/transfer reverted forever, freezing funds.
+  **Fix:** a full-exit path (`has_change` flag) — a note can always be withdrawn *in full* with
+  no insert, even at a full tree. (commit `46622e7`)
+Both have dedicated tests against the real host (`noncanonical_nullifier_rejected`,
+`full_exit_works_when_tree_full`); a re-audit confirmed both closed and hardened the first test
+so it genuinely pins the gate. Circuit review returned **sound** (no forgeable-proof path).
+Minor items fixed in the same pass: shield CEI ordering, instance-TTL, amount-encoding guard.
 
 **Explicitly NOT claimed:**
-- **Not audited.** Self-reviewed only. No third-party audit yet.
+- **Not independently (human) audited.** Self-reviewed + AI-audited (Fable 5) only. An
+  independent professional audit is still required before mainnet with real user funds.
 - **Trusted setup is a demo ceremony** (single contributor), not a multi-party MPC — fine for
   testnet, **not** for mainnet keys.
 - **Small anonymity set:** depth-6 tree = 64 notes. Real privacy needs a larger tree + traffic.
+  (Once full, only full-exits work — funds are recoverable, but transfers/partial-withdraws
+  revert until a deeper tree ships. Not a stuck-funds bug; a scale limit.)
 - **Amounts:** shield and the withdrawn portion are **public**. Only private sends (and change)
   hide amounts. We do **not** claim confidential amounts on shield/withdraw.
+- **Residual Low:** nullifier and commitment share a Poseidon domain (a dust-only linkability
+  leak); domain-separation is tracked for the next circuit redeploy.
 - **Testnet only.** Mainnet is intentionally gated behind the items in §12.
 
 ---
