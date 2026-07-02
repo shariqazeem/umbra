@@ -10,7 +10,7 @@
 //!   4. wrong-recipient attempt — a proof bound to recipient R can't pay recipient R'
 
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{token, Address, BytesN, Env, Vec};
+use soroban_sdk::{token, Address, Bytes, BytesN, Env, Vec};
 
 use crate::{UmbraPool, UmbraPoolClient};
 use groth16_verifier::{Proof, VerifyingKey};
@@ -168,7 +168,7 @@ fn happy_path_shield_then_withdraw() {
     let before = ctx.client.next_index();
     let change_leaf =
         ctx.client
-            .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
+            .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &to);
 
     assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "recipient received the public amount");
     assert_eq!(
@@ -195,7 +195,7 @@ fn wrong_payee_rejected() {
     // Attacker observes the proof and tries to redirect the payout to themselves.
     let attacker = Address::generate(&ctx.env);
     let stolen = ctx.client.try_withdraw(
-        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &attacker,
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &attacker,
     );
     assert!(stolen.is_err(), "a proof bound to payee P must not pay a different address");
     assert!(!ctx.client.is_spent(&nullifier), "a rejected redirect must not burn the nullifier");
@@ -203,7 +203,7 @@ fn wrong_payee_rejected() {
     // The real (bound) payee can still withdraw.
     let to = payee(&ctx.env);
     ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &to);
     assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "the bound payee is paid");
 }
 
@@ -225,7 +225,7 @@ fn confidential_transfer_works() {
     let out2 = t.publics.get_unchecked(3);
 
     let before = ctx.client.next_index();
-    let (leaf1, leaf2) = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2);
+    let (leaf1, leaf2) = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
     assert_eq!(leaf1, before, "first output inserted at the next slot");
     assert_eq!(leaf2, before + 1, "second output inserted after it");
     assert_eq!(ctx.client.next_index(), before + 2, "two output commitments inserted");
@@ -234,7 +234,7 @@ fn confidential_transfer_works() {
     assert_eq!(ctx.token.balance(&ctx.client.address), AMOUNT, "value stays in the pool");
 
     // Double-spend of the same input note is rejected.
-    let again = ctx.client.try_transfer(&t.proof, &root, &nullifier, &out1, &out2);
+    let again = ctx.client.try_transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
     assert!(again.is_err(), "reusing the spent nullifier must fail");
 }
 
@@ -249,10 +249,10 @@ fn double_spend_rejected() {
     let to = payee(&ctx.env);
 
     ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &to);
     // Second spend of the same nullifier must fail.
     let again = ctx.client.try_withdraw(
-        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to,
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &to,
     );
     assert!(again.is_err(), "double spend must be rejected");
 }
@@ -295,7 +295,7 @@ fn noncanonical_nullifier_rejected() {
 
     // Legit spend with the canonical nullifier n.
     ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &to);
 
     // Remove the insufficient-balance excuse (Fable-5 re-audit finding): fund the pool so a
     // wrongly-accepted replay would ACTUALLY have funds to pay a second time. Now the ONLY
@@ -309,7 +309,7 @@ fn noncanonical_nullifier_rejected() {
     let alias = BytesN::from_array(&ctx.env, &be_add(&nullifier.to_array(), &FR_MODULUS));
     let replay = ctx
         .client
-        .try_withdraw(&ctx.withdraw.proof, &root, &alias, &recipient, &WITHDRAW_AMT, &change, &true, &to);
+        .try_withdraw(&ctx.withdraw.proof, &root, &alias, &recipient, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &to);
     assert!(replay.is_err(), "non-canonical nullifier alias (n+r) must be rejected, not double-spent");
     assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "no second payout — the canonical gate rejected the alias");
 }
@@ -332,7 +332,7 @@ fn invalid_proof_rejected() {
         b: ctx.withdraw.proof.b.clone(),
         c: ctx.withdraw.proof.c.clone(),
     };
-    let res = ctx.client.try_withdraw(&bad, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
+    let res = ctx.client.try_withdraw(&bad, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &to);
     assert!(res.is_err(), "tampered proof must be rejected on-chain");
 }
 
@@ -353,7 +353,7 @@ fn wrong_recipient_rejected() {
     let wrong = BytesN::from_array(&ctx.env, &r);
 
     let res = ctx.client.try_withdraw(
-        &ctx.withdraw.proof, &root, &nullifier, &wrong, &WITHDRAW_AMT, &change, &true, &to,
+        &ctx.withdraw.proof, &root, &nullifier, &wrong, &WITHDRAW_AMT, &change, &true, &Bytes::new(&ctx.env), &to,
     );
     assert!(res.is_err(), "a proof bound to recipient R must not pay recipient R'");
 }
@@ -372,7 +372,7 @@ fn amount_mismatch_rejected() {
     // Asking to withdraw a DIFFERENT amount changes the public input → verification fails,
     // so a proof for amount A can never authorize withdrawing A+1.
     let res = ctx.client.try_withdraw(
-        &ctx.withdraw.proof, &root, &nullifier, &recipient, &(WITHDRAW_AMT + 1), &change, &true, &to,
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &(WITHDRAW_AMT + 1), &change, &true, &Bytes::new(&ctx.env), &to,
     );
     assert!(res.is_err(), "a proof for amount A must not authorize withdrawing A+1");
 }
@@ -398,7 +398,7 @@ fn nonpositive_amount_rejected() {
         );
         assert!(
             ctx.client
-                .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &bad, &change, &true, &to)
+                .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &bad, &change, &true, &Bytes::new(&ctx.env), &to)
                 .is_err(),
             "withdraw must reject non-positive amount"
         );
@@ -454,7 +454,7 @@ fn full_exit_works_when_tree_full() {
 
     let leaf = ctx
         .client
-        .withdraw(&exit.proof, &root, &nullifier, &recipient, &AMOUNT, &change, &false, &to);
+        .withdraw(&exit.proof, &root, &nullifier, &recipient, &AMOUNT, &change, &false, &Bytes::new(&ctx.env), &to);
     assert_eq!(leaf, 0, "a full exit inserts no leaf (returns the 0 sentinel)");
     assert_eq!(ctx.token.balance(&to), AMOUNT, "the whole note is paid out at a full tree");
     assert_eq!(ctx.client.next_index(), 64, "no leaf was inserted");
@@ -466,6 +466,6 @@ fn full_exit_works_when_tree_full() {
     let (r2, n2, rec2, ch2) = parts(&full);
     let partial = ctx
         .client
-        .try_withdraw(&full.proof, &r2, &n2, &rec2, &WITHDRAW_AMT, &ch2, &true, &payee(&ctx.env));
+        .try_withdraw(&full.proof, &r2, &n2, &rec2, &WITHDRAW_AMT, &ch2, &true, &Bytes::new(&ctx.env), &payee(&ctx.env));
     assert!(partial.is_err(), "a change-keeping withdraw must still fail when the tree is full");
 }

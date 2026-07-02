@@ -13,8 +13,8 @@
 
 use groth16_verifier::{verify_groth16, Proof, VerifyingKey};
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, token, vec, Address, BytesN, Env, Symbol,
-    Vec,
+    contract, contracterror, contractimpl, contracttype, token, vec, Address, Bytes, BytesN, Env,
+    Symbol, Vec,
 };
 
 mod poseidon;
@@ -166,6 +166,7 @@ impl UmbraPool {
         amount: i128,
         change_commitment: BytesN<32>,
         has_change: bool,
+        change_ct: Bytes,
         to: Address,
     ) -> Result<u32, Error> {
         let s = env.storage().instance();
@@ -236,9 +237,11 @@ impl UmbraPool {
         let tk: Address = s.get(&DataKey::Token).unwrap();
         token::Client::new(&env, &tk).transfer(&env.current_contract_address(), &to, &amount);
 
+        // The change note's encrypted opening (empty on a full exit) so the sender can recover
+        // this hidden-value note from the chain on any device. The contract never reads it.
         env.events().publish(
             (Symbol::new(&env, "WithdrawalCompleted"),),
-            (nullifier, to, amount, emitted_cm, change_leaf),
+            (nullifier, to, amount, emitted_cm, change_leaf, change_ct),
         );
         Ok(change_leaf)
     }
@@ -261,6 +264,7 @@ impl UmbraPool {
         nullifier: BytesN<32>,
         out_commitment1: BytesN<32>,
         out_commitment2: BytesN<32>,
+        change_ct: Bytes,
     ) -> Result<(u32, u32), Error> {
         let s = env.storage().instance();
         let vk: VerifyingKey = s.get(&DataKey::VkTransfer).ok_or(Error::NotInitialized)?;
@@ -304,9 +308,12 @@ impl UmbraPool {
         // Keep the contract instance live under active use.
         s.extend_ttl(100_000, 1_000_000);
 
+        // The change output's (out_commitment2) encrypted opening, so the SENDER can recover
+        // their hidden-value change note from the chain on any device. out_commitment1 is the
+        // recipient's note — it travels on the bearer claim link, not here. Contract never reads it.
         env.events().publish(
             (Symbol::new(&env, "TransferCompleted"),),
-            (nullifier, out_commitment1, out_commitment2, leaf1, leaf2),
+            (nullifier, out_commitment1, out_commitment2, leaf1, leaf2, change_ct),
         );
         Ok((leaf1, leaf2))
     }

@@ -33,6 +33,7 @@ import { TxProgress, type TxStep } from "@/components/umbra/tx-progress";
 import { ProofViz } from "@/components/umbra/proof-viz";
 import { AnimatedNumber } from "@/components/umbra/animated-number";
 import { deriveSeed } from "@/lib/umbra/note-derivation";
+import { deriveNoteKey, encryptNoteOpening } from "@/lib/umbra/note-crypto";
 import { recoverFromChain } from "@/lib/umbra/recovery";
 import type { Signer } from "@/lib/umbra/signer";
 
@@ -75,6 +76,14 @@ export default function WalletPage() {
   const ensureSeed = useCallback(async () => {
     if (wallet.signer && !walletStore.hasSeed()) walletStore.setSeed(await deriveSeed(wallet.signer));
   }, [wallet.signer]);
+
+  // The wallet's note-encryption key (deterministic from the seed) — encrypts change-note
+  // openings that get posted on-chain, so hidden-value change recovers on any device.
+  const noteKey = useCallback(async () => {
+    const seed = walletStore.getSeed();
+    if (seed === null) throw new Error("Wallet seed unavailable — connect your wallet.");
+    return deriveNoteKey(seed);
+  }, []);
 
   const syncFromChain = useCallback(async () => {
     if (!wallet.signer || !isChainConfigured()) return;
@@ -222,6 +231,12 @@ export default function WalletPage() {
         if (!payout) throw new Error("Enter a destination Stellar address");
         setLastTo(payout);
         setTxStep("signing");
+        // Encrypt the change opening under the wallet's note key, posted on-chain so this
+        // hidden-value change note recovers cross-device. Empty on a full exit (no change).
+        const changeCt =
+          changeValue > 0n
+            ? await encryptNoteOpening(await noteKey(), change.note.secret, changeValue)
+            : new Uint8Array(0);
         const { hash, changeLeaf } = await submitWithdraw(
           {
             proof,
@@ -231,6 +246,7 @@ export default function WalletPage() {
             amount: BigInt(input.amount),
             changeCommitment: BigInt(input.changeCommitment),
             hasChange: input.has_change === "1",
+            changeCt,
             to: payout,
           },
           wallet.signer,
@@ -319,6 +335,13 @@ export default function WalletPage() {
       if (isChainConfigured()) {
         if (!wallet.signer) throw new Error("Connect your wallet to move funds on-chain");
         setTxStep("signing");
+        // Encrypt the change (out2) opening under the wallet's note key → posted on-chain so the
+        // sender's hidden-value change recovers cross-device. The recipient note (out1) travels
+        // on the bearer claim link, so it isn't encrypted here.
+        const changeCt =
+          changeAmt > 0n
+            ? await encryptNoteOpening(await noteKey(), change.note.secret, changeAmt)
+            : new Uint8Array(0);
         const res = await submitTransfer(
           {
             proof,
@@ -326,6 +349,7 @@ export default function WalletPage() {
             nullifier: BigInt(input.nullifier),
             outCommitment1: BigInt(input.outCommitment1),
             outCommitment2: BigInt(input.outCommitment2),
+            changeCt,
           },
           wallet.signer,
           (p) => setTxStep(p),
@@ -578,9 +602,9 @@ function Home({
 
 const RECOVERY_STEPS = [
   { t: "Connect your wallet", s: "No account, no server, no custodian." },
-  { t: "Sync from chain", s: "Scan the pool's deposit & withdrawal events." },
+  { t: "Sync from chain", s: "Scan the pool's events — deposits, plus your change's encrypted openings." },
   { t: "Private balance rebuilt", s: "Your Merkle tree and notes, reconstructed from chain." },
-  { t: "Withdrawable note found", s: "Re-derived from your wallet — ready to spend, anywhere." },
+  { t: "Withdrawable note found", s: "Re-derived / decrypted with your wallet — ready to spend, anywhere." },
 ];
 
 function RecoveryCard({ hasWallet, syncing, onSync }: { hasWallet: boolean; syncing: boolean; onSync: () => void }) {
@@ -597,7 +621,9 @@ function RecoveryCard({ hasWallet, syncing, onSync }: { hasWallet: boolean; sync
       </div>
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
         Not an account. Not a server balance.{" "}
-        <span className="text-foreground">A private note your wallet can recover from the chain</span> — on any device.
+        <span className="text-foreground">Deposits and change rebuild from the chain on any device</span> — each
+        note&rsquo;s opening is encrypted to your wallet&rsquo;s key. A payment someone sent you is claimed from its
+        one-time link.
       </p>
       <div className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
         {RECOVERY_STEPS.map((s, i) => (

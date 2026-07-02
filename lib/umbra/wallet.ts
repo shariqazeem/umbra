@@ -111,6 +111,11 @@ class WalletStore {
     return this.seed !== null;
   }
 
+  /** The per-wallet seed (for deriving the note-encryption key). Null until a wallet connects. */
+  getSeed(): bigint | null {
+    return this.seed;
+  }
+
   private nextNonce(): number {
     const used = this.notes.map((n) => n.nonce).filter((x): x is number => typeof x === "number");
     return used.length ? Math.max(...used) + 1 : 0;

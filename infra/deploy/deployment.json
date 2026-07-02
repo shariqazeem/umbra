@@ -2,22 +2,23 @@
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "contractIds": {
-    "pool": "CAXK3RA6ELWVW37JJQM3ZTIB7WFSZBFGPVGJN5FKTCJRUGGJYQW5DWYZ",
+    "pool": "CDFD6MPPMFGOROG3D3XW47INBFYFP6KSXFFYCAPWK4J57EQTD6HQ4TU3",
     "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
   },
-  "wasmHash": "84525ea40ab5721ea3812657cafe8cd0a008033b1b356973e70599272819b766",
-  "deployTx": "7aca04214589f4bf655c5d3dd19b5f187149c7ab0caaf30e42d205849deeeb00",
-  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/7aca04214589f4bf655c5d3dd19b5f187149c7ab0caaf30e42d205849deeeb00",
-  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CAXK3RA6ELWVW37JJQM3ZTIB7WFSZBFGPVGJN5FKTCJRUGGJYQW5DWYZ",
+  "wasmHash": "16a9782aa72fdf47d1318a40f000b7838b912d766772d5c7a05f3ddd14960bb8",
+  "deployTx": "c3460105cb8b9a8defb804eb8559785333ba996be1572a92ed7a567761ea4fe9",
+  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/c3460105cb8b9a8defb804eb8559785333ba996be1572a92ed7a567761ea4fe9",
+  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CDFD6MPPMFGOROG3D3XW47INBFYFP6KSXFFYCAPWK4J57EQTD6HQ4TU3",
   "deployer": "GAHR34WCIIS4TQDGC362ETJSHXNLE6AF6ZDK3EPONNPFRIEXLWNOHYXQ",
   "deployerId": "umbra-deployer",
   "explorerBase": "https://stellar.expert/explorer/testnet",
-  "deployedAt": "2026-07-02T15:17:55Z",
+  "deployedAt": "2026-07-02T16:29:17Z",
   "merkleDepth": 6,
-  "audit": "Fable 5 (contract + circuits + verifier); 2 Criticals found + fixed (non-canonical nullifier double-spend; tree-full stuck-funds). Self-reviewed, not independently audited.",
+  "audit": "Fable 5 (contract + circuits + verifier); 2 Criticals found + fixed + re-verified. Self-reviewed + AI-audited, not independently human-audited.",
   "features": [
     "shield",
     "withdraw / unshield (join-split: arbitrary public amount + private change; full-exit path; C1-bound)",
-    "confidential transfer (join-split, hidden amounts + change)"
+    "confidential transfer (join-split, hidden amounts + change)",
+    "encrypted note backup (Zcash-style on-chain change ciphertexts → cross-device recovery)"
   ]
 }

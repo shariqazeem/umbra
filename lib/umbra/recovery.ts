@@ -1,11 +1,14 @@
-// On-chain note discovery + recovery. Scans the pool's DepositCreated /
-// WithdrawalCompleted events, rebuilds the FULL Merkle tree (so withdrawal paths are
-// correct regardless of who else wrote to the pool — this also removes the single-
-// writer limitation), and re-identifies the wallet's own notes by re-deriving secrets
-// from the wallet seed and matching commitments.
+// On-chain note discovery + recovery. Scans the pool's DepositCreated / WithdrawalCompleted /
+// TransferCompleted events, rebuilds the FULL Merkle tree (so withdrawal paths are correct
+// regardless of who else wrote to the pool), and re-identifies the wallet's own notes two ways:
+//   1. DEPOSITS — re-derive secrets from the seed and match by their PUBLIC amount.
+//   2. CHANGE notes — hidden-value, so they can't be matched by amount; instead they carry an
+//      encrypted opening on-chain (Zcash-style note ciphertext), which we trial-decrypt with the
+//      wallet's note key. This is what lets change notes recover on any device (note-crypto.ts).
 import { commitment as noteCommitment, nullifier } from "@umbra/wallet-core";
 import { UMBRA_CONFIG } from "./config";
 import { deriveNoteSecret } from "./note-derivation";
+import { deriveNoteKey, decryptNoteOpening } from "./note-crypto";
 import type { WalletNote } from "./wallet";
 
 const MAX_NONCE_SCAN = 64; // how many deterministic notes to look for per wallet
@@ -39,6 +42,22 @@ function toBig(v: unknown): bigint {
   return BigInt(String(v));
 }
 
+/** A scValToNative'd Bytes value (Buffer/Uint8Array/{data}) → Uint8Array. */
+function toBytes(v: unknown): Uint8Array {
+  if (v instanceof Uint8Array) return v;
+  if (v && typeof v === "object" && "data" in (v as Record<string, unknown>)) {
+    return Uint8Array.from((v as { data: number[] }).data);
+  }
+  return new Uint8Array(0);
+}
+
+/** An on-chain encrypted change-note opening, to be trial-decrypted with the wallet's note key. */
+interface ChangeCipher {
+  ct: Uint8Array;
+  commitment: bigint;
+  leafIndex: number;
+}
+
 /** Discover the wallet's notes + the full tree from chain, given the wallet seed. */
 export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   const sdk = await import("@stellar/stellar-sdk");
@@ -52,6 +71,7 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   const deposits: Deposit[] = [];
   const spent = new Set<string>();
   const leafAt = new Map<number, bigint>(); // every inserted commitment, by on-chain leaf index
+  const changeCts: ChangeCipher[] = []; // encrypted change-note openings, to trial-decrypt
   let cursor: string | undefined;
 
   // The RPC paginates sparsely (a page can be empty while more ledgers remain), so we
@@ -76,17 +96,23 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
         deposits.push({ commitment, leafIndex, amount: toBig(val[2]) });
         leafAt.set(leafIndex, commitment);
       } else if (t0 === "WithdrawalCompleted" && Array.isArray(val)) {
-        // (nullifier, to, amount, change_commitment, change_leaf): a spent input note plus a
-        // new change commitment that MUST be in the tree for inclusion paths to match on-chain.
-        // A full exit emits change_commitment == 0 (no leaf inserted) — skip that sentinel.
+        // (nullifier, to, amount, change_commitment, change_leaf, change_ct): a spent input note
+        // plus a new change commitment that MUST be in the tree, and its encrypted opening. A
+        // full exit emits change_commitment == 0 (no leaf inserted) — skip that sentinel.
         spent.add(toBig(val[0]).toString());
-        if (val.length >= 5 && toBig(val[3]) !== 0n) leafAt.set(Number(val[4]), toBig(val[3]));
+        if (val.length >= 5 && toBig(val[3]) !== 0n) {
+          const cm = toBig(val[3]);
+          leafAt.set(Number(val[4]), cm);
+          if (val.length >= 6) changeCts.push({ ct: toBytes(val[5]), commitment: cm, leafIndex: Number(val[4]) });
+        }
       } else if (t0 === "TransferCompleted" && Array.isArray(val)) {
-        // (nullifier, outCommitment1, outCommitment2, leaf1, leaf2): a spent input note plus
-        // two new commitments that MUST be in the tree for inclusion paths to match on-chain.
+        // (nullifier, outCommitment1, outCommitment2, leaf1, leaf2, change_ct): a spent input
+        // plus two new commitments (both in the tree), and the SENDER's change (out2) opening.
         spent.add(toBig(val[0]).toString());
         leafAt.set(Number(val[3]), toBig(val[1]));
-        leafAt.set(Number(val[4]), toBig(val[2]));
+        const out2 = toBig(val[2]);
+        leafAt.set(Number(val[4]), out2);
+        if (val.length >= 6) changeCts.push({ ct: toBytes(val[5]), commitment: out2, leafIndex: Number(val[4]) });
       }
     }
     if (leafAt.size + spent.size > before) {
@@ -108,7 +134,7 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   const allLeaves: bigint[] = [];
   for (let i = 0; i <= maxLeaf; i++) allLeaves.push(leafAt.get(i) ?? 0n);
 
-  // Re-derive secrets and match deposits → owned notes.
+  // Re-derive secrets and match deposits → owned notes (matched by their public amount).
   const secrets = Array.from({ length: MAX_NONCE_SCAN }, (_, n) => deriveNoteSecret(seed, n));
   const owned: WalletNote[] = [];
   for (const d of deposits) {
@@ -119,6 +145,19 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
         break;
       }
     }
+  }
+
+  // Recover CHANGE notes from their encrypted openings (hidden value → not matchable by amount).
+  // Trial-decrypt each on-chain ciphertext with the wallet's note key; a decrypt that both
+  // authenticates AND matches the on-chain commitment is one of ours. This is what makes a
+  // private balance rebuild on any device, not just the browser that created it.
+  const noteKey = await deriveNoteKey(seed);
+  for (const cc of changeCts) {
+    const opening = await decryptNoteOpening(noteKey, cc.ct);
+    if (!opening) continue; // not ours, or a full-exit sentinel
+    if (noteCommitment({ secret: opening.secret, value: opening.value }) !== cc.commitment) continue;
+    const nf = nullifier({ secret: opening.secret, value: opening.value }, cc.leafIndex);
+    owned.push({ secret: opening.secret, value: opening.value, leafIndex: cc.leafIndex, spent: spent.has(nf.toString()) });
   }
 
   return { allLeaves, owned, scannedDeposits: deposits.length };

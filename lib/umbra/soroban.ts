@@ -175,6 +175,8 @@ export async function submitWithdraw(
     amount: bigint;
     changeCommitment: bigint;
     hasChange: boolean;
+    /** Encrypted change-note opening (empty on a full exit) so the change recovers cross-device. */
+    changeCt: Uint8Array;
     to: string;
   },
   signer: Signer,
@@ -192,6 +194,7 @@ export async function submitWithdraw(
       sdk.nativeToScVal(args.amount, { type: "i128" }),
       sdk.nativeToScVal(bytes32(args.changeCommitment)),
       sdk.nativeToScVal(args.hasChange),
+      sdk.nativeToScVal(args.changeCt),
       new sdk.Address(args.to).toScVal(),
     ],
     signer,
@@ -215,6 +218,8 @@ export async function submitTransfer(
     nullifier: bigint;
     outCommitment1: bigint;
     outCommitment2: bigint;
+    /** Encrypted change-note (out2) opening so the sender's change recovers cross-device. */
+    changeCt: Uint8Array;
   },
   signer: Signer,
   onStatus?: (p: SubmitPhase) => void,
@@ -229,6 +234,7 @@ export async function submitTransfer(
       sdk.nativeToScVal(bytes32(args.nullifier)),
       sdk.nativeToScVal(bytes32(args.outCommitment1)),
       sdk.nativeToScVal(bytes32(args.outCommitment2)),
+      sdk.nativeToScVal(args.changeCt),
     ],
     signer,
     onStatus,
