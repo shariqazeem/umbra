@@ -137,6 +137,65 @@ fn payee(env: &Env) -> Address {
     Address::from_string(&soroban_sdk::String::from_str(env, PAYEE))
 }
 
+// MEASUREMENT (not an assertion) — prints the real CPU cost of one Poseidon hash and a full
+// transfer, so we can compute how deep the Merkle tree can go within Soroban's per-tx budget.
+// Run: cargo test -p umbra-pool measure_depth_budget -- --nocapture
+#[test]
+fn measure_depth_budget() {
+    if !fixtures_present() {
+        eprintln!("SKIP measure_depth_budget: fixtures absent");
+        return;
+    }
+    let env = Env::default();
+    let a = crate::poseidon::fr_from_bytes(&b::<32>(
+        &env,
+        "0000000000000000000000000000000000000000000000000000000000000001",
+    ));
+    let c = crate::poseidon::fr_from_bytes(&b::<32>(
+        &env,
+        "0000000000000000000000000000000000000000000000000000000000000002",
+    ));
+    env.cost_estimate().budget().reset_unlimited();
+    let _ = crate::poseidon::poseidon2(&env, &a, &c);
+    let hash_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+
+    // Split: deserializing the constants (once per insert_commitment) vs one permutation.
+    env.cost_estimate().budget().reset_unlimited();
+    let params = crate::poseidon::PoseidonParams::new(&env);
+    let params_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+    env.cost_estimate().budget().reset_unlimited();
+    let _ = params.hash2(&env, &a, &c);
+    let perm_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+    eprintln!("MEASURE params_new_cpu  = {} (deserialize constants)", params_cpu);
+    eprintln!("MEASURE permutation_cpu = {} (one hash, params reused)", perm_cpu);
+
+    let ctx = setup();
+    let t = &ctx.transfer;
+    let root = t.publics.get_unchecked(0);
+    let nullifier = t.publics.get_unchecked(1);
+    let out1 = t.publics.get_unchecked(2);
+    let out2 = t.publics.get_unchecked(3);
+    ctx.env.cost_estimate().budget().reset_unlimited();
+    ctx.client
+        .transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
+    let transfer_cpu = ctx.env.cost_estimate().budget().cpu_instruction_cost();
+
+    let depth = crate::poseidon_constants::MERKLE_DEPTH as u64;
+    let inserts_cpu = 2u64 * depth * hash_cpu; // transfer does 2 inserts
+    let fixed_cpu = transfer_cpu.saturating_sub(inserts_cpu); // verify + overhead
+    eprintln!("MEASURE poseidon2_cpu   = {}", hash_cpu);
+    eprintln!("MEASURE transfer_cpu    = {} (depth {})", transfer_cpu, depth);
+    eprintln!("MEASURE fixed_cpu       = {} (verify + overhead)", fixed_cpu);
+    // Soroban per-tx CPU limit is 100_000_000. With a 10% margin (90M):
+    let limit = 90_000_000u64;
+    if hash_cpu > 0 {
+        let max_d_2insert = (limit.saturating_sub(fixed_cpu)) / (2 * hash_cpu);
+        let max_d_1insert = (limit.saturating_sub(fixed_cpu)) / hash_cpu;
+        eprintln!("MEASURE max depth @ 2 inserts (today)      = {}", max_d_2insert);
+        eprintln!("MEASURE max depth @ 1 batched insert       = {}", max_d_1insert);
+    }
+}
+
 /// The on-chain Poseidon MUST match the TS/circuit Poseidon, or contract roots will
 /// never equal wallet/circuit roots. Oracle from @umbra/crypto-bls gen-rust-constants.
 #[test]
