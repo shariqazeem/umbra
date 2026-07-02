@@ -1,0 +1,15 @@
+# Only the Next.js web app needs to reach Vercel. Exclude the heavy non-JS build domains
+# and local build artifacts (they took the upload to 1.2GB).
+#
+# LEADING SLASH IS REQUIRED: an unanchored pattern like `circuits` matches at ANY depth and
+# would also drop public/circuits/*.zkey (the proving artifacts the browser actually fetches).
+# Anchor everything to the repo root.
+**/node_modules
+.next
+.git
+/contracts
+/circuits
+/tests
+/docs
+**/target
+*.log
