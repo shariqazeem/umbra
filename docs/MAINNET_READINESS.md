@@ -26,15 +26,17 @@ transfer, register-on-claim, and withdraw all confirmed live on testnet.
 
 ---
 
-## Prerequisites (only you can provide)
+## Prerequisites
 
-- **A funded mainnet deployer identity.** Mainnet has no friendbot — fund a key with real XLM
-  (deploy fees are trivial; a few XLM is plenty).
+- **RPC — SOLVED.** Public, no-signup mainnet Soroban RPC (tested healthy):
+  `https://soroban-rpc.mainnet.stellar.gateway.fm` (Gateway.fm). Fallbacks:
+  `https://mainnet.sorobanrpc.com`, `https://rpc.lightsail.network/`, or your own provider.
+- **Funded deployer — the only thing left.** The identity `umbra-deployer-mainnet` is already
+  created locally (secret in the Stellar keystore). Fund its address with **~15 XLM** (deploy
+  fees + demo deposits + reserve):
   ```
-  stellar keys generate umbra-deployer-mainnet   # or reuse an existing funded key
-  stellar keys address  umbra-deployer-mainnet    # → fund this address with real XLM
+  stellar keys address umbra-deployer-mainnet   # → send ~15 XLM here from Freighter/an exchange
   ```
-- **A provider Soroban RPC** (Validation Cloud / Blockdaemon / QuickNode — mainnet has no public RPC).
 
 ## Deploy (one command once funded)
 
@@ -44,7 +46,7 @@ bash circuits/scripts/build-slice.sh
 
 # deploy the hardened wasm + 4-VK constructor to mainnet (typed confirmation, real money):
 UMBRA_DEPLOYER=umbra-deployer-mainnet \
-UMBRA_RPC_URL=https://<your-mainnet-rpc> \
+UMBRA_RPC_URL=https://soroban-rpc.mainnet.stellar.gateway.fm \
 UMBRA_CANARY_CAP_XLM=5 \
   bash infra/deploy/deploy-mainnet.sh
 # → writes infra/deploy/deployment.mainnet.json with the pool contract id
