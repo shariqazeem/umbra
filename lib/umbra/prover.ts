@@ -42,12 +42,13 @@ export function proveTransfer(input: TransferInput): Promise<Groth16ProofJson> {
  * `prove` / `proveShield` / `proveWithdraw` stay as the untouched reference path.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export type ProverVariant = "shield" | "withdraw" | "transfer";
+export type ProverVariant = "shield" | "withdraw" | "transfer" | "claim";
 
 export const PROVER_ARTIFACTS: Record<ProverVariant, { wasmUrl: string; zkeyUrl: string }> = {
   shield: { wasmUrl: UMBRA_CONFIG.shieldWasmUrl, zkeyUrl: UMBRA_CONFIG.shieldZkeyUrl },
   withdraw: { wasmUrl: UMBRA_CONFIG.withdrawWasmUrl, zkeyUrl: UMBRA_CONFIG.withdrawZkeyUrl },
   transfer: { wasmUrl: UMBRA_CONFIG.transferWasmUrl, zkeyUrl: UMBRA_CONFIG.transferZkeyUrl },
+  claim: { wasmUrl: UMBRA_CONFIG.claimWasmUrl, zkeyUrl: UMBRA_CONFIG.claimZkeyUrl },
 };
 
 /**

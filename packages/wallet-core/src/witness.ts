@@ -116,3 +116,23 @@ export function buildTransferInput(
     outValue2: out2.value.toString(),
   };
 }
+
+/** Claim (opening proof, value private). Proves you hold a valid opening of `commitment`. */
+export interface ClaimInput {
+  commitment: string;
+  secret: string;
+  value: string;
+}
+
+/**
+ * Build the witness for a register-on-claim: prove knowledge of a note's opening (secret,
+ * value) for its `commitment`, WITHOUT revealing the value. The contract inserts the commitment
+ * once it verifies this + that the commitment is a pending transfer output.
+ */
+export function buildClaimInput(note: Note): ClaimInput {
+  return {
+    commitment: commitment(note).toString(),
+    secret: note.secret.toString(),
+    value: note.value.toString(),
+  };
+}

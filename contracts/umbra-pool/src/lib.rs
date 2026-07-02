@@ -1,16 +1,17 @@
 #![cfg_attr(not(test), no_std)]
 //! Umbra pool — the vertical-slice privacy pool.
 //!
-//! Two state-changing entrypoints, both gated by a Groth16/BLS12-381 proof verified
-//! on-chain via the CAP-0059 host functions:
-//!   * `shield`   — verify a well-formedness proof, pull funds, insert the
-//!                  commitment into the on-chain Poseidon Merkle tree.
-//!   * `withdraw` — verify an inclusion+nullifier+recipient+amount proof, reject
-//!                  spent nullifiers / unknown roots, pay the recipient.
+//! State-changing entrypoints, each gated by a Groth16/BLS12-381 proof verified on-chain via the
+//! CAP-0059 host functions. Every one inserts AT MOST ONE Merkle leaf, so the tree can be deep:
+//!   * `shield`       — verify well-formedness, pull funds, insert the commitment.
+//!   * `withdraw`     — verify inclusion+nullifier+recipient+amount, pay out, insert the change.
+//!   * `transfer`     — confidential 1-in/2-out; insert ONLY the change (out2), record the
+//!                      recipient note (out1) as pending.
+//!   * `claim_insert` — the recipient proves a pending note's opening; insert it, clear pending.
 //!
-//! Storage: commitments (as a Poseidon incremental tree: frontier + roots),
-//! nullifiers (persistent set). Events: DepositCreated, WithdrawalCompleted, TransferCompleted,
-//! NoteRegistered (register-on-claim ciphertexts for cross-device recovery of received notes).
+//! Storage: commitments (a Poseidon incremental tree: frontier + roots), nullifiers, and pending
+//! recipient outputs (all persistent). Events: DepositCreated, WithdrawalCompleted,
+//! TransferCompleted, NoteRegistered (a claimed note's leaf + encrypted opening for recovery).
 
 use groth16_verifier::{verify_groth16, Proof, VerifyingKey};
 use soroban_sdk::{
@@ -39,6 +40,7 @@ pub enum Error {
     InvalidAmount = 6,
     TreeFull = 7,
     RecipientMismatch = 8,
+    NotPending = 9,
 }
 
 #[contracttype]
@@ -47,11 +49,15 @@ pub enum DataKey {
     VkShield,
     VkWithdraw,
     VkTransfer,
+    VkClaim,
     Token,
     NextIndex,
     Frontier,
     Roots,
     Nullifier(BytesN<32>),
+    /// A transfer's recipient output, awaiting the recipient to claim + insert it (backing that
+    /// prevents inserting a note with no matching spent input, i.e. inflation).
+    Pending(BytesN<32>),
 }
 
 #[contract]
@@ -74,11 +80,13 @@ impl UmbraPool {
         vk_shield: VerifyingKey,
         vk_withdraw: VerifyingKey,
         vk_transfer: VerifyingKey,
+        vk_claim: VerifyingKey,
     ) {
         let s = env.storage().instance();
         s.set(&DataKey::VkShield, &vk_shield);
         s.set(&DataKey::VkWithdraw, &vk_withdraw);
         s.set(&DataKey::VkTransfer, &vk_transfer);
+        s.set(&DataKey::VkClaim, &vk_claim);
         s.set(&DataKey::Token, &token);
         s.set(&DataKey::NextIndex, &0u32);
 
@@ -256,8 +264,9 @@ impl UmbraPool {
     /// moves** — value stays in the pool, re-split. Public inputs (pinned order):
     /// [root, nullifier, out_commitment1, out_commitment2].
     ///
-    /// The two Merkle inserts fit Stellar's per-tx compute budget because PoseidonParams
-    /// deserializes the round constants + MDS once per call (see poseidon.rs), not per hash.
+    /// ONE on-chain insert: only the sender's change (out2) is inserted; the recipient's note
+    /// (out1) is recorded PENDING for the recipient to insert themselves via `claim_insert`.
+    /// Halving the per-tx Merkle work is what lets the tree be far deeper. Returns out2's leaf.
     pub fn transfer(
         env: Env,
         proof: Proof,
@@ -266,7 +275,7 @@ impl UmbraPool {
         out_commitment1: BytesN<32>,
         out_commitment2: BytesN<32>,
         change_ct: Bytes,
-    ) -> Result<(u32, u32), Error> {
+    ) -> Result<u32, Error> {
         let s = env.storage().instance();
         let vk: VerifyingKey = s.get(&DataKey::VkTransfer).ok_or(Error::NotInitialized)?;
 
@@ -286,9 +295,9 @@ impl UmbraPool {
             return Err(Error::UnknownRoot);
         }
 
-        // The fixed-depth tree must have room for both output commitments.
+        // Only ONE leaf is inserted (the change), so the tree needs room for one.
         let next: u32 = s.get(&DataKey::NextIndex).unwrap_or(0);
-        if next + 2 > (1u32 << (MERKLE_DEPTH as u32)) {
+        if next + 1 > (1u32 << (MERKLE_DEPTH as u32)) {
             return Err(Error::TreeFull);
         }
 
@@ -302,35 +311,67 @@ impl UmbraPool {
         env.storage().persistent().set(&nf_key, &true);
         env.storage().persistent().extend_ttl(&nf_key, 100_000, 1_000_000);
 
-        // Insert both output commitments (value never leaves the pool).
-        let leaf1 = Self::insert_commitment(&env, &out_commitment1);
+        // Insert ONLY the sender's change (out2). Record the recipient's note (out1) as PENDING —
+        // the recipient inserts it via claim_insert. Pending is the backing that prevents
+        // inflation: out1 can only ever be inserted because a real input was just spent for it.
         let leaf2 = Self::insert_commitment(&env, &out_commitment2);
+        let pending = DataKey::Pending(out_commitment1.clone());
+        env.storage().persistent().set(&pending, &true);
+        env.storage().persistent().extend_ttl(&pending, 100_000, 1_000_000);
 
         // Keep the contract instance live under active use.
         s.extend_ttl(100_000, 1_000_000);
 
-        // The change output's (out_commitment2) encrypted opening, so the SENDER can recover
-        // their hidden-value change note from the chain on any device. out_commitment1 is the
-        // recipient's note — it travels on the bearer claim link, not here. Contract never reads it.
+        // out2 is at leaf2 with its encrypted opening (sender's cross-device recovery). out1 is
+        // the pending recipient note (no leaf yet) — it travels on the bearer claim link.
         env.events().publish(
             (Symbol::new(&env, "TransferCompleted"),),
-            (nullifier, out_commitment1, out_commitment2, leaf1, leaf2, change_ct),
+            (nullifier, out_commitment1, out_commitment2, leaf2, change_ct),
         );
-        Ok((leaf1, leaf2))
+        Ok(leaf2)
     }
 
-    /// Register an encrypted opening for a note the caller RECEIVED (claimed via a bearer link),
-    /// so that hidden-value received note can be recovered from the chain on any device — the
-    /// same cross-device guarantee deposits and change already have.
-    ///
-    /// Pure associated data: it emits NoteRegistered(leaf_index, note_ct) and changes NO state.
-    /// It is intentionally unauthenticated and unverified — safe because recovery only accepts a
-    /// ciphertext that BOTH decrypts under the owner's key AND matches the on-chain commitment at
-    /// `leaf_index`. So a spammed/forged registration cannot make anyone recover a note they do
-    /// not own, cannot move funds, and cannot corrupt the tree; worst case it is ignored.
-    pub fn register_note(env: Env, leaf_index: u32, note_ct: Bytes) {
+    /// Claim a received private-send note: verify the recipient holds a valid opening of
+    /// `commitment` (the `claim` circuit — value stays hidden), confirm it is a PENDING transfer
+    /// output (backing → no inflation), insert it into the tree, clear the pending flag, and emit
+    /// its encrypted opening for cross-device recovery. This is the deferred second insert that
+    /// makes `transfer` a single-insert operation. No token moves — the value is already pooled.
+    /// Returns the leaf index.
+    pub fn claim_insert(
+        env: Env,
+        proof: Proof,
+        commitment: BytesN<32>,
+        note_ct: Bytes,
+    ) -> Result<u32, Error> {
+        let s = env.storage().instance();
+        let vk: VerifyingKey = s.get(&DataKey::VkClaim).ok_or(Error::NotInitialized)?;
+
+        // The commitment must be a pending recipient output (backed by a real spent input).
+        let pending = DataKey::Pending(commitment.clone());
+        if !env.storage().persistent().has(&pending) {
+            return Err(Error::NotPending);
+        }
+
+        // Prove the caller holds a valid opening of the commitment (anti-griefing).
+        let public_inputs = vec![&env, commitment.clone()];
+        if !verify_groth16(&env, &vk, &proof, &public_inputs) {
+            return Err(Error::InvalidProof);
+        }
+
+        // Tree must have room for the one insert.
+        let next: u32 = s.get(&DataKey::NextIndex).unwrap_or(0);
+        if next + 1 > (1u32 << (MERKLE_DEPTH as u32)) {
+            return Err(Error::TreeFull);
+        }
+
+        // Insert the note, consume the pending flag (so it can't be claimed twice), keep live.
+        let leaf = Self::insert_commitment(&env, &commitment);
+        env.storage().persistent().remove(&pending);
+        s.extend_ttl(100_000, 1_000_000);
+
         env.events()
-            .publish((Symbol::new(&env, "NoteRegistered"),), (leaf_index, note_ct));
+            .publish((Symbol::new(&env, "NoteRegistered"),), (leaf, commitment, note_ct));
+        Ok(leaf)
     }
 
     // --- read-only views -----------------------------------------------------

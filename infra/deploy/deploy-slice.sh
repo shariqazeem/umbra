@@ -132,7 +132,7 @@ preflight() {
   fi
 
   local f
-  for f in shield_soroban.json withdraw_soroban.json; do
+  for f in shield_soroban.json withdraw_soroban.json transfer_soroban.json claim_soroban.json; do
     [ -f "$BUILD/$f" ] || fail \
       "missing circuit fixture $BUILD/$f" \
       "bash circuits/scripts/build-slice.sh"
@@ -198,16 +198,17 @@ main() {
   # H1: the pool is initialized ATOMICALLY by its constructor — the token + both
   # verification keys are bound in the same transaction that creates the contract, so
   # there is no separate init() call an attacker could front-run to bind a malicious key.
-  step "deploy umbra_pool (constructor binds token + verification keys — atomic, H1)"
-  local vk_shield vk_withdraw vk_transfer
+  step "deploy umbra_pool (constructor binds token + 4 verification keys — atomic, H1)"
+  local vk_shield vk_withdraw vk_transfer vk_claim
   vk_shield="$(jq -c '.vk' "$BUILD/shield_soroban.json")"
   vk_withdraw="$(jq -c '.vk' "$BUILD/withdraw_soroban.json")"
   vk_transfer="$(jq -c '.vk' "$BUILD/transfer_soroban.json")"
+  vk_claim="$(jq -c '.vk' "$BUILD/claim_soroban.json")"
   local dlog
   dlog="$(mktemp)"
   POOL="$(stellar contract deploy --wasm-hash "$WASM_HASH" \
             --source-account "$UMBRA_DEPLOYER" --network "$UMBRA_NETWORK" \
-            -- --token "$UMBRA_TOKEN" --vk_shield "$vk_shield" --vk_withdraw "$vk_withdraw" --vk_transfer "$vk_transfer" 2>"$dlog")"
+            -- --token "$UMBRA_TOKEN" --vk_shield "$vk_shield" --vk_withdraw "$vk_withdraw" --vk_transfer "$vk_transfer" --vk_claim "$vk_claim" 2>"$dlog")"
   cat "$dlog" >&2
   DEPLOY_TX="$(extract_txhash "$dlog" "$WASM_HASH")"
   rm -f "$dlog"

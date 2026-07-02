@@ -5,20 +5,22 @@ import Link from "next/link";
 import { ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { Shell, Card, Button, Eyebrow } from "@/components/umbra/ui";
 import { WalletConnect } from "@/components/umbra/wallet-connect";
+import { commitment as noteCommitment, buildClaimInput } from "@umbra/wallet-core";
 import { decodeClaim, type PrivateSendClaim } from "@/lib/umbra/private-send";
 import { walletStore } from "@/lib/umbra/wallet";
 import { stroopsToXlm } from "@/lib/umbra/units";
 import { isChainConfigured } from "@/lib/umbra/config";
 import { deriveSeed } from "@/lib/umbra/note-derivation";
 import { deriveNoteKey, encryptNoteOpening } from "@/lib/umbra/note-crypto";
-import { submitRegisterNote } from "@/lib/umbra/soroban";
+import { submitClaimInsert } from "@/lib/umbra/soroban";
 import { useWallet } from "@/hooks/use-wallet";
+import { useProver } from "@/hooks/use-prover";
 
 export default function ClaimPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const wallet = useWallet();
+  const prover = useProver();
   const [added, setAdded] = useState(false);
-  const [registered, setRegistered] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,17 +38,22 @@ export default function ClaimPage({ params }: { params: Promise<{ code: string }
     setClaiming(true);
     setError(null);
     try {
-      walletStore.importNote(claim.secret, claim.value, claim.leafIndex);
-      // Register-on-claim: post the note's encrypted opening on-chain, encrypted to the
-      // claimer's OWN note key, so this received note recovers on any device — the same
-      // cross-device guarantee deposits and change have. Needs a connected wallet (a tiny tx).
-      if (isChainConfigured() && wallet.signer) {
+      const note = { secret: claim.secret, value: claim.value };
+      if (isChainConfigured()) {
+        if (!wallet.signer) throw new Error("Connect your wallet to claim this note into it.");
+        // Prove we hold a valid opening of the pending recipient note (value stays private),
+        // then the contract inserts it into the tree + records its encrypted opening so it
+        // recovers cross-device. This deferred insert is what makes the send a 1-insert tx.
+        const cm = noteCommitment(note);
+        const proof = await prover.run("claim", buildClaimInput(note) as unknown as Record<string, unknown>);
         const seed = await deriveSeed(wallet.signer);
         walletStore.setSeed(seed);
-        const noteKey = await deriveNoteKey(seed);
-        const ct = await encryptNoteOpening(noteKey, claim.secret, claim.value);
-        await submitRegisterNote({ leafIndex: claim.leafIndex, noteCt: ct }, wallet.signer);
-        setRegistered(true);
+        const ct = await encryptNoteOpening(await deriveNoteKey(seed), claim.secret, claim.value);
+        const { leaf } = await submitClaimInsert({ proof, commitment: cm, noteCt: ct }, wallet.signer);
+        walletStore.importNote(claim.secret, claim.value, leaf);
+      } else {
+        // Demo mode (no chain): just hold it locally.
+        walletStore.importNote(claim.secret, claim.value, 0);
       }
       setAdded(true);
     } catch (e) {
@@ -71,10 +78,7 @@ export default function ClaimPage({ params }: { params: Promise<{ code: string }
               <h1 className="text-xl font-semibold text-foreground">Added to your wallet</h1>
               <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
                 <span className="font-mono text-foreground">{value} XLM</span> is now a private note in
-                your wallet.{" "}
-                {registered
-                  ? "It's registered on-chain, so it recovers on any device — not just this browser."
-                  : "Held in this browser. Connect a wallet when you claim to make it recoverable anywhere."}
+                your wallet — inserted on-chain and registered to your key, so it recovers on any device.
               </p>
               <Link href="/wallet" className="mt-2">
                 <Button>
@@ -93,7 +97,7 @@ export default function ClaimPage({ params }: { params: Promise<{ code: string }
               </p>
               <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
                 Someone sent you a confidential transfer — the amount was hidden on-chain. Claim it
-                into your Umbra wallet to hold or spend it privately.
+                into your Umbra wallet: you prove you hold it and it&rsquo;s inserted privately.
               </p>
               {isChainConfigured() && (
                 <div className="w-full">
@@ -105,9 +109,7 @@ export default function ClaimPage({ params }: { params: Promise<{ code: string }
               </Button>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <p className="text-xs text-muted-foreground">
-                {isChainConfigured() && wallet.signer
-                  ? "Registered to your wallet on-chain, so it recovers on any device."
-                  : "One-time bearer claim — connect a wallet to make it recoverable anywhere."}
+                One-time bearer claim — whoever opens it can claim the funds. Share it privately.
               </p>
             </div>
           )}

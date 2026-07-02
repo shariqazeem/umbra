@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { Address } from "@stellar/stellar-sdk";
 import {
   MerkleTree,
+  buildClaimInput,
   buildShieldInput,
   buildTransferInput,
   buildWithdrawInput,
@@ -73,6 +74,11 @@ const out1 = makeNote(OUT1);
 const out2 = makeNote(OUT2);
 const transferInput = buildTransferInput(note, tree, out1, out2);
 writeFileSync(join(build, "transfer_input.json"), JSON.stringify(transferInput, null, 2));
+
+// 4. Claim (register-on-claim): the recipient proves the opening of out1 (value private) so the
+// contract inserts it into the tree — the deferred insert that makes transfer a 1-insert op.
+const claimInput = buildClaimInput(out1);
+writeFileSync(join(build, "claim_input.json"), JSON.stringify(claimInput, null, 2));
 writeFileSync(
   join(build, "slice_meta.json"),
   JSON.stringify(

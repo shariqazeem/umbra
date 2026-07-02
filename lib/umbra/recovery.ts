@@ -72,7 +72,7 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   const spent = new Set<string>();
   const leafAt = new Map<number, bigint>(); // every inserted commitment, by on-chain leaf index
   const changeCts: ChangeCipher[] = []; // encrypted change-note openings, to trial-decrypt
-  const registeredCts: { ct: Uint8Array; leafIndex: number }[] = []; // received notes (register-on-claim)
+  const registeredCts: { ct: Uint8Array; commitment: bigint; leafIndex: number }[] = []; // received notes
   let cursor: string | undefined;
 
   // The RPC paginates sparsely (a page can be empty while more ledgers remain), so we
@@ -107,17 +107,19 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
           if (val.length >= 6) changeCts.push({ ct: toBytes(val[5]), commitment: cm, leafIndex: Number(val[4]) });
         }
       } else if (t0 === "TransferCompleted" && Array.isArray(val)) {
-        // (nullifier, outCommitment1, outCommitment2, leaf1, leaf2, change_ct): a spent input
-        // plus two new commitments (both in the tree), and the SENDER's change (out2) opening.
+        // (nullifier, out1, out2, leaf2, change_ct): ONLY the change (out2) is inserted here, at
+        // leaf2, with the sender's encrypted opening. out1 (recipient) is pending until claimed
+        // — it enters the tree via a later NoteRegistered event.
         spent.add(toBig(val[0]).toString());
-        leafAt.set(Number(val[3]), toBig(val[1]));
         const out2 = toBig(val[2]);
-        leafAt.set(Number(val[4]), out2);
-        if (val.length >= 6) changeCts.push({ ct: toBytes(val[5]), commitment: out2, leafIndex: Number(val[4]) });
+        leafAt.set(Number(val[3]), out2);
+        if (val.length >= 5) changeCts.push({ ct: toBytes(val[4]), commitment: out2, leafIndex: Number(val[3]) });
       } else if (t0 === "NoteRegistered" && Array.isArray(val)) {
-        // (leaf_index, note_ct): a RECEIVED note the owner claimed + registered on-chain, so it
-        // recovers cross-device. Matched below by decrypting the ct + checking the commitment.
-        registeredCts.push({ ct: toBytes(val[1]), leafIndex: Number(val[0]) });
+        // (leaf, commitment, note_ct): a RECEIVED note inserted at claim time. Place its leaf in
+        // the tree AND collect its ciphertext, so it recovers cross-device.
+        const cm = toBig(val[1]);
+        leafAt.set(Number(val[0]), cm);
+        registeredCts.push({ ct: toBytes(val[2]), commitment: cm, leafIndex: Number(val[0]) });
       }
     }
     if (leafAt.size + spent.size + registeredCts.length > before) {
@@ -171,11 +173,9 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   const ownedLeaves = new Set(owned.map((n) => n.leafIndex));
   for (const rc of registeredCts) {
     if (ownedLeaves.has(rc.leafIndex)) continue;
-    const commitment = leafAt.get(rc.leafIndex);
-    if (commitment === undefined) continue;
     const opening = await decryptNoteOpening(noteKey, rc.ct);
     if (!opening) continue;
-    if (noteCommitment({ secret: opening.secret, value: opening.value }) !== commitment) continue;
+    if (noteCommitment({ secret: opening.secret, value: opening.value }) !== rc.commitment) continue;
     const nf = nullifier({ secret: opening.secret, value: opening.value }, rc.leafIndex);
     owned.push({ secret: opening.secret, value: opening.value, leafIndex: rc.leafIndex, spent: spent.has(nf.toString()) });
     ownedLeaves.add(rc.leafIndex);

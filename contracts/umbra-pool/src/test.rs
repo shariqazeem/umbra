@@ -29,6 +29,7 @@ fn fixtures_present() -> bool {
     build_dir().join("shield_soroban.json").exists()
         && build_dir().join("withdraw_soroban.json").exists()
         && build_dir().join("transfer_soroban.json").exists()
+        && build_dir().join("claim_soroban.json").exists()
 }
 
 fn b<const N: usize>(env: &Env, h: &str) -> BytesN<N> {
@@ -79,6 +80,7 @@ struct Ctx<'a> {
     token: token::TokenClient<'a>,
     withdraw: Fixture,
     transfer: Fixture,
+    claim: Fixture,
 }
 
 /// Register the pool + a test asset, init with both VKs, mint to a depositor, and
@@ -91,6 +93,7 @@ fn setup<'a>() -> Ctx<'a> {
     let shield = load(&env, "shield");
     let withdraw = load(&env, "withdraw");
     let transfer = load(&env, "transfer");
+    let claim = load(&env, "claim");
 
     // Test asset.
     let admin = Address::generate(&env);
@@ -105,7 +108,13 @@ fn setup<'a>() -> Ctx<'a> {
     // Pool — initialized atomically via the constructor (H1: no separate init call).
     let id = env.register(
         UmbraPool,
-        (token_addr.clone(), shield.vk.clone(), withdraw.vk.clone(), transfer.vk.clone()),
+        (
+            token_addr.clone(),
+            shield.vk.clone(),
+            withdraw.vk.clone(),
+            transfer.vk.clone(),
+            claim.vk.clone(),
+        ),
     );
     let client = UmbraPoolClient::new(&env, &id);
 
@@ -115,7 +124,7 @@ fn setup<'a>() -> Ctx<'a> {
     assert_eq!(leaf, 0);
     assert_eq!(token.balance(&id), AMOUNT, "pool holds the shielded funds");
 
-    Ctx { env, client, token, withdraw, transfer }
+    Ctx { env, client, token, withdraw, transfer, claim }
 }
 
 // withdraw publics = [root, nullifier, recipient, amount, change_commitment]
@@ -135,6 +144,74 @@ fn parts(f: &Fixture) -> (BytesN<32>, BytesN<32>, BytesN<32>, BytesN<32>) {
 const PAYEE: &str = "CCG4XWI5PQXJ22L6PCCFJU5YTPFDI7EBJKSVQ4WMI45DIHG4UPHOSIXG";
 fn payee(env: &Env) -> Address {
     Address::from_string(&soroban_sdk::String::from_str(env, PAYEE))
+}
+
+// MEASUREMENT (not an assertion) — prints the real CPU cost of one Poseidon hash and a full
+// transfer, so we can compute how deep the Merkle tree can go within Soroban's per-tx budget.
+// Run: cargo test -p umbra-pool measure_depth_budget -- --nocapture
+#[test]
+fn measure_depth_budget() {
+    if !fixtures_present() {
+        eprintln!("SKIP measure_depth_budget: fixtures absent");
+        return;
+    }
+    let env = Env::default();
+    let a = crate::poseidon::fr_from_bytes(&b::<32>(
+        &env,
+        "0000000000000000000000000000000000000000000000000000000000000001",
+    ));
+    let c = crate::poseidon::fr_from_bytes(&b::<32>(
+        &env,
+        "0000000000000000000000000000000000000000000000000000000000000002",
+    ));
+    env.cost_estimate().budget().reset_unlimited();
+    let _ = crate::poseidon::poseidon2(&env, &a, &c);
+    let hash_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+
+    // Split: deserializing the constants (once per insert_commitment) vs one permutation.
+    env.cost_estimate().budget().reset_unlimited();
+    let params = crate::poseidon::PoseidonParams::new(&env);
+    let params_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+    env.cost_estimate().budget().reset_unlimited();
+    let _ = params.hash2(&env, &a, &c);
+    let perm_cpu = env.cost_estimate().budget().cpu_instruction_cost();
+    eprintln!("MEASURE params_new_cpu  = {} (deserialize constants)", params_cpu);
+    eprintln!("MEASURE permutation_cpu = {} (one hash, params reused)", perm_cpu);
+
+    let ctx = setup();
+    let t = &ctx.transfer;
+    let root = t.publics.get_unchecked(0);
+    let nullifier = t.publics.get_unchecked(1);
+    let out1 = t.publics.get_unchecked(2);
+    let out2 = t.publics.get_unchecked(3);
+    ctx.env.cost_estimate().budget().reset_unlimited();
+    ctx.client
+        .transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
+    let transfer_cpu = ctx.env.cost_estimate().budget().cpu_instruction_cost();
+
+    let depth = crate::poseidon_constants::MERKLE_DEPTH as u64;
+    // The redesigned transfer does exactly ONE Merkle insert (change out2); the recipient
+    // output out1 is deferred to claim_insert. (It used to do two — that capped us at depth 6.)
+    let inserts_cpu = depth * hash_cpu;
+    let fixed_cpu = transfer_cpu.saturating_sub(inserts_cpu); // verify + overhead
+    eprintln!("MEASURE poseidon2_cpu   = {}", hash_cpu);
+    eprintln!("MEASURE transfer_cpu    = {} (depth {}, 1 insert)", transfer_cpu, depth);
+    eprintln!("MEASURE fixed_cpu       = {} (verify + overhead)", fixed_cpu);
+    // EMPIRICAL testnet ceiling (from real submitted txs, not the stale 100M doc figure):
+    // depth-6 2-insert transfer = 208M SUCCEEDED; depth-8 2-insert = 263M FAILED
+    // ⇒ tx_max_instructions ∈ [208M, 263M). We size the tree so the priciest op (a 1-insert
+    // transfer/withdraw) stays at or under the largest value PROVEN to succeed (208M).
+    let proven_safe = 208_000_000u64;
+    if hash_cpu > 0 {
+        let max_d_1insert = (proven_safe.saturating_sub(fixed_cpu)) / hash_cpu;
+        eprintln!("MEASURE max depth @ 1 insert (≤208M proven-safe) = {}", max_d_1insert);
+        eprintln!(
+            "MEASURE this build: depth {} transfer = {}M — {}",
+            depth,
+            transfer_cpu / 1_000_000,
+            if transfer_cpu <= proven_safe { "within proven-safe 208M" } else { "ABOVE 208M (relies on true ceiling > this; verify on-chain)" }
+        );
+    }
 }
 
 /// The on-chain Poseidon MUST match the TS/circuit Poseidon, or contract roots will
@@ -207,9 +284,8 @@ fn wrong_payee_rejected() {
     assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "the bound payee is paid");
 }
 
-// Confidential transfer: spend the input note into two output commitments. Amounts are
-// hidden (no amount is a public input), value never leaves the pool, and the chain sees
-// only a spent nullifier + two new commitments.
+// Confidential transfer (1-insert): spend the input note; only the change (out2) is inserted,
+// the recipient note (out1) is recorded pending. Amounts hidden, no token moves.
 #[test]
 fn confidential_transfer_works() {
     if !fixtures_present() {
@@ -225,10 +301,9 @@ fn confidential_transfer_works() {
     let out2 = t.publics.get_unchecked(3);
 
     let before = ctx.client.next_index();
-    let (leaf1, leaf2) = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
-    assert_eq!(leaf1, before, "first output inserted at the next slot");
-    assert_eq!(leaf2, before + 1, "second output inserted after it");
-    assert_eq!(ctx.client.next_index(), before + 2, "two output commitments inserted");
+    let leaf2 = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
+    assert_eq!(leaf2, before, "the change (out2) is inserted at the next slot");
+    assert_eq!(ctx.client.next_index(), before + 1, "ONLY the change is inserted (1-insert transfer)");
     assert!(ctx.client.is_spent(&nullifier), "the input note's nullifier is spent");
     // No token moved — the pool still holds exactly the shielded amount.
     assert_eq!(ctx.token.balance(&ctx.client.address), AMOUNT, "value stays in the pool");
@@ -236,6 +311,43 @@ fn confidential_transfer_works() {
     // Double-spend of the same input note is rejected.
     let again = ctx.client.try_transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
     assert!(again.is_err(), "reusing the spent nullifier must fail");
+}
+
+// Register-on-claim: after a transfer pends the recipient note (out1), the recipient proves its
+// opening and claim_insert adds it to the tree. Claiming a NON-pending commitment (no backing
+// spend) is rejected — this is what prevents minting notes from nothing (inflation).
+#[test]
+fn claim_insert_works() {
+    if !fixtures_present() {
+        eprintln!("SKIP claim_insert: proof fixtures absent");
+        return;
+    }
+    let ctx = setup();
+    let t = &ctx.transfer;
+    let root = t.publics.get_unchecked(0);
+    let nullifier = t.publics.get_unchecked(1);
+    let out1 = t.publics.get_unchecked(2);
+    let out2 = t.publics.get_unchecked(3);
+    // claim publics = [commitment]; the fixture's commitment IS the transfer's out1.
+    let commitment = ctx.claim.publics.get_unchecked(0);
+    assert_eq!(commitment, out1, "claim fixture must open the transfer's recipient note");
+
+    // Before any transfer, out1 is NOT pending → a claim (that would mint value) is rejected.
+    let no_backing =
+        ctx.client.try_claim_insert(&ctx.claim.proof, &commitment, &Bytes::new(&ctx.env));
+    assert!(no_backing.is_err(), "claiming a non-pending commitment must fail (no inflation)");
+
+    // Do the transfer → out1 becomes pending; only out2 (change) is inserted.
+    let leaf2 = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
+
+    // Now the recipient claims out1 → it is inserted at the next slot.
+    let leaf1 = ctx.client.claim_insert(&ctx.claim.proof, &commitment, &Bytes::new(&ctx.env));
+    assert_eq!(leaf1, leaf2 + 1, "the claimed note is inserted after the change");
+    assert_eq!(ctx.client.next_index(), leaf2 + 2, "both notes now in the tree");
+
+    // Double-claim is rejected (the pending flag was consumed).
+    let again = ctx.client.try_claim_insert(&ctx.claim.proof, &commitment, &Bytes::new(&ctx.env));
+    assert!(again.is_err(), "a note can be claimed only once");
 }
 
 #[test]

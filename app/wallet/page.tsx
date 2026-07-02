@@ -341,13 +341,12 @@ export default function WalletPage() {
       if (!input) throw new Error("couldn't build the transfer for this note");
       const proof = await prover.run("transfer", input as unknown as Record<string, unknown>);
       let txHash: string | null = null;
-      let leaf1 = 0;
       if (isChainConfigured()) {
         if (!wallet.signer) throw new Error("Connect your wallet to move funds on-chain");
         setTxStep("signing");
         // Encrypt the change (out2) opening under the wallet's note key → posted on-chain so the
-        // sender's hidden-value change recovers cross-device. The recipient note (out1) travels
-        // on the bearer claim link, so it isn't encrypted here.
+        // sender's hidden-value change recovers cross-device. The recipient note (out1) is
+        // pending until the recipient claims it — its opening travels on the bearer claim link.
         const changeCt =
           changeAmt > 0n
             ? await encryptNoteOpening(await noteKey(), change.note.secret, changeAmt)
@@ -365,14 +364,15 @@ export default function WalletPage() {
           (p) => setTxStep(p),
         );
         txHash = res.hash;
-        leaf1 = res.leaf1;
         walletStore.markSpent(cm); // input note spent
-        walletStore.observe(change.commitment, res.leaf2); // change note now spendable
+        walletStore.observe(change.commitment, res.changeLeaf); // change note now spendable
         setMsg(txHash);
       } else {
         await sleep(1200);
       }
-      setClaim(encodeClaim({ secret: recipientSecret, value: sendAmt, leafIndex: leaf1 }));
+      // The recipient's note (out1) has no leaf yet — the link carries only its opening; the
+      // recipient inserts it at claim time.
+      setClaim(encodeClaim({ secret: recipientSecret, value: sendAmt }));
       void auditStore.log({
         kind: "send",
         amount: stroopsToXlm(sendAmt),
