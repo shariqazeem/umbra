@@ -55,3 +55,4 @@ yarn-error.log*
 
 # served circuit artifacts — COMMITTED (~4.4M) so a fresh clone can prove in-browser.
 # Regenerable from circuits/build via the build script.
+.vercel

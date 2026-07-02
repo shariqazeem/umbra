@@ -18,7 +18,7 @@ import {
 import Link from "next/link";
 import { Button, Card, Eyebrow, Pill, Shell } from "@/components/umbra/ui";
 import { CopyButton } from "@/components/copy-button";
-import deployment from "@/infra/deploy/deployment.json";
+import { activeDeployment as deployment } from "@/lib/umbra/deployment";
 
 const D = deployment as {
   network: string;

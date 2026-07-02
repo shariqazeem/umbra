@@ -2,7 +2,7 @@
 
 import { ArrowUpRight, Clock, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import deployment from "@/infra/deploy/deployment.json";
+import { activeDeployment as deployment } from "@/lib/umbra/deployment";
 
 /**
  * The wow-moment, on /withdraw success — the demo's climax.
