@@ -9,7 +9,8 @@
 //!                  spent nullifiers / unknown roots, pay the recipient.
 //!
 //! Storage: commitments (as a Poseidon incremental tree: frontier + roots),
-//! nullifiers (persistent set). Events: DepositCreated, WithdrawalCompleted, TransferCompleted.
+//! nullifiers (persistent set). Events: DepositCreated, WithdrawalCompleted, TransferCompleted,
+//! NoteRegistered (register-on-claim ciphertexts for cross-device recovery of received notes).
 
 use groth16_verifier::{verify_groth16, Proof, VerifyingKey};
 use soroban_sdk::{
@@ -316,6 +317,20 @@ impl UmbraPool {
             (nullifier, out_commitment1, out_commitment2, leaf1, leaf2, change_ct),
         );
         Ok((leaf1, leaf2))
+    }
+
+    /// Register an encrypted opening for a note the caller RECEIVED (claimed via a bearer link),
+    /// so that hidden-value received note can be recovered from the chain on any device — the
+    /// same cross-device guarantee deposits and change already have.
+    ///
+    /// Pure associated data: it emits NoteRegistered(leaf_index, note_ct) and changes NO state.
+    /// It is intentionally unauthenticated and unverified — safe because recovery only accepts a
+    /// ciphertext that BOTH decrypts under the owner's key AND matches the on-chain commitment at
+    /// `leaf_index`. So a spammed/forged registration cannot make anyone recover a note they do
+    /// not own, cannot move funds, and cannot corrupt the tree; worst case it is ignored.
+    pub fn register_note(env: Env, leaf_index: u32, note_ct: Bytes) {
+        env.events()
+            .publish((Symbol::new(&env, "NoteRegistered"),), (leaf_index, note_ct));
     }
 
     // --- read-only views -----------------------------------------------------

@@ -245,3 +245,23 @@ export async function submitTransfer(
     res.returnValue != null ? (sdk.scValToNative(res.returnValue) as [number, number]) : [0, 0];
   return { hash: res.hash, leaf1: Number(ret[0] ?? 0), leaf2: Number(ret[1] ?? 0) };
 }
+
+/**
+ * Register an encrypted opening for a RECEIVED note (claimed via a bearer link) so it recovers
+ * cross-device. Emits NoteRegistered(leaf_index, note_ct); pure associated data, moves nothing.
+ */
+export async function submitRegisterNote(
+  args: { leafIndex: number; noteCt: Uint8Array },
+  signer: Signer,
+  onStatus?: (p: SubmitPhase) => void,
+): Promise<{ hash: string }> {
+  const sdk = await import("@stellar/stellar-sdk");
+  const res = await invoke(
+    sdk,
+    "register_note",
+    [sdk.nativeToScVal(args.leafIndex, { type: "u32" }), sdk.nativeToScVal(args.noteCt)],
+    signer,
+    onStatus,
+  );
+  return { hash: res.hash };
+}

@@ -72,6 +72,7 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   const spent = new Set<string>();
   const leafAt = new Map<number, bigint>(); // every inserted commitment, by on-chain leaf index
   const changeCts: ChangeCipher[] = []; // encrypted change-note openings, to trial-decrypt
+  const registeredCts: { ct: Uint8Array; leafIndex: number }[] = []; // received notes (register-on-claim)
   let cursor: string | undefined;
 
   // The RPC paginates sparsely (a page can be empty while more ledgers remain), so we
@@ -85,7 +86,7 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
       : { startLedger, filters: [{ type: "contract" as const, contractIds: [pool] }], limit: 200 };
     const resp = await server.getEvents(req as Parameters<typeof server.getEvents>[0]);
     const events = resp.events ?? [];
-    const before = leafAt.size + spent.size;
+    const before = leafAt.size + spent.size + registeredCts.length;
     for (const ev of events) {
       const topics = (ev.topic ?? []) as unknown[];
       const t0 = topics[0] ? sdk.scValToNative(topics[0] as never) : null;
@@ -113,9 +114,13 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
         const out2 = toBig(val[2]);
         leafAt.set(Number(val[4]), out2);
         if (val.length >= 6) changeCts.push({ ct: toBytes(val[5]), commitment: out2, leafIndex: Number(val[4]) });
+      } else if (t0 === "NoteRegistered" && Array.isArray(val)) {
+        // (leaf_index, note_ct): a RECEIVED note the owner claimed + registered on-chain, so it
+        // recovers cross-device. Matched below by decrypting the ct + checking the commitment.
+        registeredCts.push({ ct: toBytes(val[1]), leafIndex: Number(val[0]) });
       }
     }
-    if (leafAt.size + spent.size > before) {
+    if (leafAt.size + spent.size + registeredCts.length > before) {
       found = true;
       emptyStreak = 0;
     } else {
@@ -158,6 +163,22 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
     if (noteCommitment({ secret: opening.secret, value: opening.value }) !== cc.commitment) continue;
     const nf = nullifier({ secret: opening.secret, value: opening.value }, cc.leafIndex);
     owned.push({ secret: opening.secret, value: opening.value, leafIndex: cc.leafIndex, spent: spent.has(nf.toString()) });
+  }
+
+  // Recover RECEIVED notes registered on-chain at claim time (register-on-claim). Same trial-
+  // decrypt: a ciphertext that decrypts under our key AND matches the on-chain commitment at its
+  // leaf is ours. Dedupe against notes already recovered as a deposit/change at the same leaf.
+  const ownedLeaves = new Set(owned.map((n) => n.leafIndex));
+  for (const rc of registeredCts) {
+    if (ownedLeaves.has(rc.leafIndex)) continue;
+    const commitment = leafAt.get(rc.leafIndex);
+    if (commitment === undefined) continue;
+    const opening = await decryptNoteOpening(noteKey, rc.ct);
+    if (!opening) continue;
+    if (noteCommitment({ secret: opening.secret, value: opening.value }) !== commitment) continue;
+    const nf = nullifier({ secret: opening.secret, value: opening.value }, rc.leafIndex);
+    owned.push({ secret: opening.secret, value: opening.value, leafIndex: rc.leafIndex, spent: spent.has(nf.toString()) });
+    ownedLeaves.add(rc.leafIndex);
   }
 
   return { allLeaves, owned, scannedDeposits: deposits.length };
