@@ -61,6 +61,20 @@ pub fn verify_groth16(
         return false;
     }
 
+    // SECURITY (canonical public inputs) — reject any public input >= r. Soroban's
+    // `Fr::from_bytes` silently reduces mod r, so `x` and `x + r` map to the SAME scalar:
+    // a proof valid for one verifies for the other, yet they are DIFFERENT 32-byte values.
+    // A caller that compares a public input by raw bytes (e.g. the pool's nullifier
+    // double-spend key `DataKey::Nullifier(bytes)`) would treat `n` and `n + r` as distinct,
+    // enabling a replay/double-spend. Enforcing canonical form makes the verifier's field
+    // view agree with the caller's byte view for EVERY field-typed public input. Honest
+    // provers always emit x < r, so this never rejects a valid proof.
+    for i in 0..public_inputs.len() {
+        if !fr_is_canonical(&public_inputs.get_unchecked(i)) {
+            return false;
+        }
+    }
+
     let bls = env.crypto().bls12_381();
 
     // vk_x = IC[0] + Σ public_i · IC[i+1]   (single G1 MSM + one add)
@@ -93,6 +107,24 @@ pub fn verify_groth16(
     vp2.push_back(G2Affine::from_bytes(vk.delta.clone()));
 
     bls.pairing_check(vp1, vp2)
+}
+
+/// True iff `x` (big-endian, 32 bytes) is a canonical Fr element, i.e. `x < r`. Because
+/// `FR_NEG_ONE == r - 1`, canonical ⟺ `x <= r - 1` ⟺ the big-endian bytes are `<= FR_NEG_ONE`
+/// (lexicographic compare of equal-length big-endian arrays equals integer compare).
+fn fr_is_canonical(x: &BytesN<32>) -> bool {
+    let x = x.to_array();
+    let mut i = 0;
+    while i < 32 {
+        if x[i] < FR_NEG_ONE[i] {
+            return true; // strictly below r-1 ⇒ < r
+        }
+        if x[i] > FR_NEG_ONE[i] {
+            return false; // above r-1 ⇒ >= r (non-canonical)
+        }
+        i += 1;
+    }
+    true // exactly r-1 ⇒ still < r, canonical
 }
 
 #[contract]

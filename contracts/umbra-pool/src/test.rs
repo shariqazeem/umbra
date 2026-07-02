@@ -257,6 +257,55 @@ fn double_spend_rejected() {
     assert!(again.is_err(), "double spend must be rejected");
 }
 
+// BLS12-381 scalar field modulus r (big-endian) = FR_NEG_ONE + 1.
+const FR_MODULUS: [u8; 32] = [
+    0x73, 0xed, 0xa7, 0x53, 0x29, 0x9d, 0x7d, 0x48, 0x33, 0x39, 0xd8, 0x08, 0x09, 0xa1, 0xd8, 0x05,
+    0x53, 0xbd, 0xa4, 0x02, 0xff, 0xfe, 0x5b, 0xfe, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01,
+];
+
+// Big-endian 32-byte addition (wrapping). For our use (n < r, plus r, n + r < 2^256) there is
+// no wraparound, so out == n + r exactly.
+fn be_add(a: &[u8; 32], b: &[u8; 32]) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    let mut carry = 0u16;
+    let mut i = 32;
+    while i > 0 {
+        i -= 1;
+        let s = a[i] as u16 + b[i] as u16 + carry;
+        out[i] = (s & 0xff) as u8;
+        carry = s >> 8;
+    }
+    out
+}
+
+// Critical #2 — a non-canonical nullifier alias (n + r) must NOT bypass the double-spend
+// guard. Soroban's Fr::from_bytes reduces mod r, so n and n+r are the SAME scalar (the proof
+// verifies for both) but DIFFERENT raw bytes; the pool keys the nullifier set on raw bytes.
+// Without the verifier's canonical-input check, replaying a spent proof with n+r would pay out
+// a second time (theft). The verifier must reject n+r as a non-canonical public input.
+#[test]
+fn noncanonical_nullifier_rejected() {
+    if !fixtures_present() {
+        eprintln!("SKIP noncanonical_nullifier: proof fixtures absent");
+        return;
+    }
+    let ctx = setup();
+    let (root, nullifier, recipient, change) = parts(&ctx.withdraw);
+    let to = payee(&ctx.env);
+
+    // Legit spend with the canonical nullifier n.
+    ctx.client
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
+
+    // n' = n + r reduces to the same scalar (proof still verifies against it) but is a
+    // DIFFERENT 32-byte key. It must be rejected, NOT treated as a fresh unspent nullifier.
+    let alias = BytesN::from_array(&ctx.env, &be_add(&nullifier.to_array(), &FR_MODULUS));
+    let replay = ctx
+        .client
+        .try_withdraw(&ctx.withdraw.proof, &root, &alias, &recipient, &WITHDRAW_AMT, &change, &to);
+    assert!(replay.is_err(), "non-canonical nullifier alias (n+r) must be rejected, not double-spent");
+}
+
 #[test]
 fn invalid_proof_rejected() {
     if !fixtures_present() {
