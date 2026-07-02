@@ -67,6 +67,8 @@ export default function WalletPage() {
   const [lastTo, setLastTo] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [claim, setClaim] = useState<string | null>(null);
+  // When a cash-out spans multiple notes, which one we're on (1-indexed) of how many.
+  const [spendNote, setSpendNote] = useState<{ i: number; n: number } | null>(null);
   const syncedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -119,6 +121,7 @@ export default function WalletPage() {
     setMsg(null);
     setLink(null);
     setTxStep("proving");
+    setSpendNote(null);
     prover.reset();
   }
 
@@ -181,103 +184,110 @@ export default function WalletPage() {
     setPhase("working");
     setMsg(null);
     setTxStep("proving");
+    setSpendNote(null);
     try {
       await ensureSeed();
-      // Refresh the full on-chain tree before proving so the withdrawal path stays
-      // valid even if others have written to the pool since our last sync (reliability
-      // on a shared pool — a stale tree would produce an unknown root).
-      if (isChainConfigured() && wallet.signer) await syncFromChain();
-      // Pick the SMALLEST note that covers `want`. This is a join-split: we spend one note,
-      // pay `want` out publicly, and keep the remainder as a private change note — so the
-      // user can cash out any amount, not just a whole note. Smallest-covering keeps large
-      // notes intact and burns down small ones.
-      const pool = walletStore.spendable();
-      const note = pool
-        .filter((n) => n.value >= want)
-        .reduce<WalletNote | null>((best, n) => (best && best.value <= n.value ? best : n), null);
-      if (!note) {
-        const largest = pool.reduce((m, n) => (n.value > m ? n.value : m), 0n);
-        throw new Error(
-          `No single note covers ${stroopsToXlm(want)} ${ASSET} — each cash-out spends one note, and your largest is ${stroopsToXlm(largest)} ${ASSET}. Send a smaller amount, or shield a larger note.`,
-        );
-      }
-      setLastAmount(stroopsToXlm(want));
-      const cm = noteCommitment({ secret: note.secret, value: note.value });
-      const changeValue = note.value - want;
-
-      // C1 — bind the proof to its payee BEFORE proving. The withdrawal proof's
-      // `recipient` public input is field(payout); on-chain the contract re-derives
-      // field(to) and rejects any mismatch, so a stolen/observed proof can never be
-      // redirected to a different address. (Demo-only path with no payout falls back to a
-      // placeholder field value — it is never submitted on-chain.)
       const payout = resolvePayout();
       if (isChainConfigured() && !payout) throw new Error("Enter a destination Stellar address");
-      const recipient = payout ? await addressToField(payout) : BigInt("12345");
+      // Refresh the full on-chain tree before proving so inclusion paths stay valid even if
+      // others wrote to the pool since our last sync (a stale tree → an unknown root).
+      if (isChainConfigured() && wallet.signer) await syncFromChain();
 
-      // The change note (seed-derived secret, so it survives a same-device recovery). Its
-      // value is HIDDEN on-chain — only `want` is public. Must be created before proving
-      // because the proof commits to its commitment.
-      const change = walletStore.createNote(changeValue);
-      const input = walletStore.withdrawInput(cm, recipient, want, {
-        secret: change.note.secret,
-        value: changeValue,
-      });
-      if (!input) throw new Error("couldn't build the proof for this note");
-      const proof = await prover.run("withdraw", input as unknown as Record<string, unknown>);
-      let txHash: string | null = null;
-      const payoutAddr: string | null = payout;
-      if (isChainConfigured()) {
-        if (!wallet.signer) throw new Error("Connect your wallet to move funds on-chain");
-        if (!payout) throw new Error("Enter a destination Stellar address");
-        setLastTo(payout);
-        setTxStep("signing");
-        // Encrypt the change opening under the wallet's note key, posted on-chain so this
-        // hidden-value change note recovers cross-device. Empty on a full exit (no change).
-        const changeCt =
-          changeValue > 0n
-            ? await encryptNoteOpening(await noteKey(), change.note.secret, changeValue)
-            : new Uint8Array(0);
-        const { hash, changeLeaf } = await submitWithdraw(
-          {
-            proof,
-            root: BigInt(input.root),
-            nullifier: BigInt(input.nullifier),
-            recipient: BigInt(input.recipient),
-            amount: BigInt(input.amount),
-            changeCommitment: BigInt(input.changeCommitment),
-            hasChange: input.has_change === "1",
-            changeCt,
-            to: payout,
-          },
-          wallet.signer,
-          (p) => setTxStep(p),
-        );
-        txHash = hash;
-        walletStore.markSpent(cm);
-        // Track the change so it's immediately spendable; skip a zero-value change note.
-        if (changeValue > 0n) walletStore.observe(change.commitment, changeLeaf);
-        setMsg(hash);
-      } else {
-        await sleep(1200);
+      // A shielded pool is note-based: each spend consumes ONE note. To cash out an amount
+      // larger than any single note, spend SEVERAL — greedily take notes (largest first) until
+      // `want` is covered. Every note but the last is a FULL exit (whole note, no change, no
+      // insert); the last takes the remainder (with private change if it exceeds it). Because a
+      // full exit never changes the on-chain root, every proof stays valid against the ONE
+      // synced root, so no re-sync is needed between spends.
+      const poolNotes = [...walletStore.spendable()].sort((a, b) =>
+        b.value > a.value ? 1 : b.value < a.value ? -1 : 0,
+      );
+      const plan: { note: WalletNote; take: bigint }[] = [];
+      let remaining = want;
+      for (const n of poolNotes) {
+        if (remaining <= 0n) break;
+        const take = n.value < remaining ? n.value : remaining;
+        plan.push({ note: n, take });
+        remaining -= take;
       }
-      void auditStore.log({
-        kind,
-        amount: stroopsToXlm(want),
-        asset: ASSET,
-        direction: "out",
-        commitment: String(cm),
-        nullifier: String(input.nullifier),
-        root: String(input.root),
-        txHash,
-        explorerUrl: txHash ? EXPLORER_TX(txHash) : null,
-        counterparty: payoutAddr,
-        disclosureNote:
-          kind === "send"
-            ? `Sent ${stroopsToXlm(want)} ${ASSET} to ${payoutAddr ?? "a recipient"}. The amount is public; the link to your deposit is not. Any change stays private in the pool.`
-            : `Unshielded ${stroopsToXlm(want)} ${ASSET} to your own address${payoutAddr ? ` ${payoutAddr}` : ""}. Any change stays private in the pool.`,
-      });
+      if (remaining > 0n) throw new Error(`Not enough private balance — you have ${stroopsToXlm(balance)} ${ASSET}.`);
+
+      // C1 — bind each proof to its payee. field(payout) is the proof's `recipient` public
+      // input; on-chain the contract re-derives field(to) and rejects any mismatch.
+      const recipient = payout ? await addressToField(payout) : BigInt("12345");
+      const payoutAddr: string | null = payout;
+      setLastAmount(stroopsToXlm(want));
+      if (payout) setLastTo(payout);
+
+      let lastHash: string | null = null;
+      for (let i = 0; i < plan.length; i++) {
+        const { note, take } = plan[i];
+        setSpendNote(plan.length > 1 ? { i: i + 1, n: plan.length } : null);
+        setTxStep("proving");
+        const cm = noteCommitment({ secret: note.secret, value: note.value });
+        const changeValue = note.value - take; // > 0 only on the last (partial) note
+
+        // Change note: seed-derived + its opening encrypted on-chain, so it recovers x-device.
+        const change = walletStore.createNote(changeValue);
+        const input = walletStore.withdrawInput(cm, recipient, take, {
+          secret: change.note.secret,
+          value: changeValue,
+        });
+        if (!input) throw new Error("couldn't build the proof for this note");
+        const proof = await prover.run("withdraw", input as unknown as Record<string, unknown>);
+        let txHash: string | null = null;
+        if (isChainConfigured()) {
+          if (!wallet.signer) throw new Error("Connect your wallet to move funds on-chain");
+          if (!payout) throw new Error("Enter a destination Stellar address");
+          setTxStep("signing");
+          const changeCt =
+            changeValue > 0n
+              ? await encryptNoteOpening(await noteKey(), change.note.secret, changeValue)
+              : new Uint8Array(0);
+          const { hash, changeLeaf } = await submitWithdraw(
+            {
+              proof,
+              root: BigInt(input.root),
+              nullifier: BigInt(input.nullifier),
+              recipient: BigInt(input.recipient),
+              amount: BigInt(input.amount),
+              changeCommitment: BigInt(input.changeCommitment),
+              hasChange: input.has_change === "1",
+              changeCt,
+              to: payout,
+            },
+            wallet.signer,
+            (p) => setTxStep(p),
+          );
+          txHash = hash;
+          lastHash = hash;
+          walletStore.markSpent(cm);
+          if (changeValue > 0n) walletStore.observe(change.commitment, changeLeaf);
+        } else {
+          await sleep(900);
+        }
+        void auditStore.log({
+          kind,
+          amount: stroopsToXlm(take),
+          asset: ASSET,
+          direction: "out",
+          commitment: String(cm),
+          nullifier: String(input.nullifier),
+          root: String(input.root),
+          txHash,
+          explorerUrl: txHash ? EXPLORER_TX(txHash) : null,
+          counterparty: payoutAddr,
+          disclosureNote:
+            kind === "send"
+              ? `Sent ${stroopsToXlm(take)} ${ASSET} to ${payoutAddr ?? "a recipient"}. The amount is public; the link to your deposit is not. Any change stays private in the pool.`
+              : `Unshielded ${stroopsToXlm(take)} ${ASSET} to your own address${payoutAddr ? ` ${payoutAddr}` : ""}. Any change stays private in the pool.`,
+        });
+      }
+      setSpendNote(null);
+      setMsg(lastHash);
       setPhase("done");
     } catch (e) {
+      setSpendNote(null);
       setMsg((e as Error).message);
       setPhase("error");
     }
@@ -426,6 +436,7 @@ export default function WalletPage() {
             view={view}
             phase={phase}
             txStep={txStep}
+            spendNote={spendNote}
             prover={prover}
             wallet={wallet}
             amount={amount}
@@ -661,6 +672,7 @@ function ActionPanel(props: {
   view: Exclude<View, "home">;
   phase: Phase;
   txStep: TxStep;
+  spendNote: { i: number; n: number } | null;
   prover: ReturnType<typeof useProver>;
   wallet: ReturnType<typeof useWallet>;
   amount: string;
@@ -716,6 +728,11 @@ function ActionPanel(props: {
             <CryptoTimeline steps={SHIELD_STEPS} running done={false} />
           ) : (
             <div className="flex flex-col gap-6">
+              {props.spendNote && (
+                <p className="text-center font-mono text-xs text-[#FF3B00]">
+                  Cashing out across notes — {props.spendNote.i} of {props.spendNote.n}
+                </p>
+              )}
               <ProofViz stage={prover.stage} />
               <TxProgress step={txStep} prover={prover} chain={isChainConfigured()} />
             </div>
