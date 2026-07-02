@@ -15,7 +15,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import type { ProverStage } from "@/lib/umbra/prover-protocol";
 
 const SIGNAL = "#FF3B00";
-const DEPTH = 3; // 8 leaves — a legible tree (the real tree is depth 6); art favors clarity
+const DEPTH = 3; // 8 leaves — a legible tree (the real tree is depth 13); art favors clarity
 const TARGET_LEAF = 5; // the leaf whose inclusion we prove ("your note")
 
 const W = 320;

@@ -140,15 +140,25 @@ main() {
   SHIELD_TX="${LAST_TX_HASH:-}"
   ok "shield tx: ${SHIELD_TX:-<no hash parsed>}"
 
-  step "withdraw 1000 -> bound payee (real private withdrawal; proof bound to the payout address — C1)"
-  local w_proof root nullifier recipient
+  # Join-split withdraw (has_change = 1): pay a PUBLIC 600 to the bound payee AND insert a 400
+  # private change note. That single Merkle insert is the depth-sensitive path — this is the
+  # transaction whose CPU cost proves the deep tree fits Stellar's per-tx budget. Amounts +
+  # change commitment come straight from the fixture (gen-fixtures.ts: WITHDRAW_AMT 600, change 400).
+  step "withdraw 600 -> bound payee, keep 400 private change (real join-split; proof bound to payee — C1)"
+  local w_proof root nullifier recipient change_commitment
   w_proof="$(jq -c '.proof' "$BUILD/withdraw_soroban.json")"
   root="$(jq -r '.publicInputs[0]' "$BUILD/withdraw_soroban.json")"
   nullifier="$(jq -r '.publicInputs[1]' "$BUILD/withdraw_soroban.json")"
   recipient="$(jq -r '.publicInputs[2]' "$BUILD/withdraw_soroban.json")"
+  change_commitment="$(jq -r '.publicInputs[4]' "$BUILD/withdraw_soroban.json")"
+  # ~68-byte encrypted-change-note placeholder (in the app this Bytes carries the AES-GCM
+  # change-note ct for cross-device recovery). stellar-cli rejects an empty Bytes value.
+  local change_ct
+  change_ct="$(head -c 68 /dev/zero | xxd -p | tr -d '\n')"
   invoke_pool -- withdraw \
     --proof "$w_proof" --root "$root" --nullifier "$nullifier" \
-    --recipient "$recipient" --amount 1000 --to "$payee" \
+    --recipient "$recipient" --amount 600 --change_commitment "$change_commitment" \
+    --has_change true --change_ct "$change_ct" --to "$payee" \
     || fail "withdraw invocation failed (see stellar output above)" ""
   WITHDRAW_TX="${LAST_TX_HASH:-}"
   ok "withdraw tx: ${WITHDRAW_TX:-<no hash parsed>}"

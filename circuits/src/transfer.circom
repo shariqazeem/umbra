@@ -119,4 +119,4 @@ template Transfer(depth) {
     value === outValue1 + outValue2;
 }
 
-component main {public [root, nullifier, outCommitment1, outCommitment2]} = Transfer(6);
+component main {public [root, nullifier, outCommitment1, outCommitment2]} = Transfer(13);

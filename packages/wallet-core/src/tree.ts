@@ -9,7 +9,7 @@ import { poseidon2 } from "@umbra/crypto-bls";
  */
 // Slice depth = 8 (256 leaves), matching the contract + circuit. See the note in
 // @umbra/crypto-bls gen-rust-constants.ts on why the slice uses a shallow tree.
-export const DEPTH = 6;
+export const DEPTH = 13;
 
 /** Zero-subtree hashes: Z[0]=0, Z[i]=Poseidon(Z[i-1], Z[i-1]). */
 export function zeroHashes(depth = DEPTH): bigint[] {

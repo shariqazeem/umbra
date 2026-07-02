@@ -2,23 +2,28 @@
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "contractIds": {
-    "pool": "CAUCOWVCKSOSO3UTBPZHPG3WYTP2733BLV4GIG3FEHIISPSRGJJEOGPC",
+    "pool": "CBA5KVEZQLFGYGGK6Z3HPWBGYVZVDXAL5LNQIS7ISHVGBNB2V43DVXYA",
     "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
   },
-  "wasmHash": "da6214b9be2dc78a698d82995f54d00a852a65e7da9ec00cdcd7970baab40407",
-  "deployTx": "53db09c8c2b9b83b31b862dd6c33b20db8281cdabce212d616f00208dbdeeb98",
-  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/53db09c8c2b9b83b31b862dd6c33b20db8281cdabce212d616f00208dbdeeb98",
-  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CAUCOWVCKSOSO3UTBPZHPG3WYTP2733BLV4GIG3FEHIISPSRGJJEOGPC",
+  "wasmHash": "968eb0db459a2b610a32079b0b5c66b9fc768747474b704c0a8bf339cee79334",
+  "deployTx": "bdff1b2bc00614415ce5f74c8b30c7712c82c81b39055c85e301808073886b51",
+  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/bdff1b2bc00614415ce5f74c8b30c7712c82c81b39055c85e301808073886b51",
+  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CBA5KVEZQLFGYGGK6Z3HPWBGYVZVDXAL5LNQIS7ISHVGBNB2V43DVXYA",
   "deployer": "GAHR34WCIIS4TQDGC362ETJSHXNLE6AF6ZDK3EPONNPFRIEXLWNOHYXQ",
   "deployerId": "umbra-deployer",
   "explorerBase": "https://stellar.expert/explorer/testnet",
-  "deployedAt": "2026-07-02T16:51:46Z",
-  "merkleDepth": 6,
-  "audit": "Fable 5 (contract + circuits + verifier); 2 Criticals found + fixed + re-verified. Self-reviewed + AI-audited, not independently human-audited.",
-  "features": [
-    "shield",
-    "withdraw / unshield (join-split: arbitrary public amount + private change; full-exit path; C1-bound)",
-    "confidential transfer (join-split, hidden amounts + change)",
-    "encrypted note backup (Zcash-style change ciphertexts + register-on-claim → 100% cross-device recovery)"
-  ]
+  "deployedAt": "2026-07-02T19:29:02Z",
+  "merkleDepth": 13,
+  "capacityNotes": 8192,
+  "demoTxs": {
+    "note": "Real testnet txs at Merkle depth 13 (8,192-note capacity). The full private-send cycle + the worst-case withdraw all fit Stellar's per-tx compute budget — the redesign that made every entrypoint a single Merkle insert.",
+    "shield": "d86124c537de36e0b3b30021db22bdcbf64c6a31145031cda51d62e7fe2cc203",
+    "transfer": "3e188dd6c09af5f5e543f5eb7bd4da28e308fe9bdd7b64942ae15ef2fe886019",
+    "claim": "97047b597d63485df4162fcfb77c8583160a4f5e76531b2807b43fb8949f19cc",
+    "withdrawEvidence": {
+      "pool": "CB6QNAEY65CAV6BXBFFSZQEUEQXOEH2F5FAEGKLPAIIOXMYYWNCHBA24",
+      "tx": "84134426518d19e33e4dcf465b63d9a5ec81436e3f742a3de2cdff060c5634c8",
+      "note": "600 public out + 400 private change insert — the most expensive 1-insert path, on a prior depth-13 pool."
+    }
+  }
 }

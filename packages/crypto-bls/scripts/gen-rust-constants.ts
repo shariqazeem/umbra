@@ -13,10 +13,11 @@ import { poseidon2 } from "../src/poseidon.js";
 import { paramsForT } from "../src/poseidon-params.js";
 import { toBytesBE } from "../src/field.js";
 
-// Slice depth = 8 (256 leaves). Keeps shield's on-chain Poseidon insertion (8 hashes)
-// + the ~40M Groth16 verify inside the 100M tx budget (FEASIBILITY_REVIEW.md §1). The
-// production target is depth 20 with in-circuit insertion (K3) so the contract never hashes.
-const DEPTH = 8;
+// Depth 13 = 8,192 leaves. Reachable because every entrypoint now does at most ONE Merkle
+// insert (the transfer's recipient output is deferred to claim_insert), so per-tx cost is
+// ~42M verify + 13 Poseidon levels ≈ 212M — just under Stellar's per-tx ceiling. (2 inserts
+// capped us at depth 6.) Production still wants in-circuit insertion / a rollup for millions.
+const DEPTH = 13;
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, "..", "..", "..", "contracts", "umbra-pool", "src");
 mkdirSync(outDir, { recursive: true });

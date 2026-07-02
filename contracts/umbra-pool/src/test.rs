@@ -190,18 +190,27 @@ fn measure_depth_budget() {
     let transfer_cpu = ctx.env.cost_estimate().budget().cpu_instruction_cost();
 
     let depth = crate::poseidon_constants::MERKLE_DEPTH as u64;
-    let inserts_cpu = 2u64 * depth * hash_cpu; // transfer does 2 inserts
+    // The redesigned transfer does exactly ONE Merkle insert (change out2); the recipient
+    // output out1 is deferred to claim_insert. (It used to do two — that capped us at depth 6.)
+    let inserts_cpu = depth * hash_cpu;
     let fixed_cpu = transfer_cpu.saturating_sub(inserts_cpu); // verify + overhead
     eprintln!("MEASURE poseidon2_cpu   = {}", hash_cpu);
-    eprintln!("MEASURE transfer_cpu    = {} (depth {})", transfer_cpu, depth);
+    eprintln!("MEASURE transfer_cpu    = {} (depth {}, 1 insert)", transfer_cpu, depth);
     eprintln!("MEASURE fixed_cpu       = {} (verify + overhead)", fixed_cpu);
-    // Soroban per-tx CPU limit is 100_000_000. With a 10% margin (90M):
-    let limit = 90_000_000u64;
+    // EMPIRICAL testnet ceiling (from real submitted txs, not the stale 100M doc figure):
+    // depth-6 2-insert transfer = 208M SUCCEEDED; depth-8 2-insert = 263M FAILED
+    // ⇒ tx_max_instructions ∈ [208M, 263M). We size the tree so the priciest op (a 1-insert
+    // transfer/withdraw) stays at or under the largest value PROVEN to succeed (208M).
+    let proven_safe = 208_000_000u64;
     if hash_cpu > 0 {
-        let max_d_2insert = (limit.saturating_sub(fixed_cpu)) / (2 * hash_cpu);
-        let max_d_1insert = (limit.saturating_sub(fixed_cpu)) / hash_cpu;
-        eprintln!("MEASURE max depth @ 2 inserts (today)      = {}", max_d_2insert);
-        eprintln!("MEASURE max depth @ 1 batched insert       = {}", max_d_1insert);
+        let max_d_1insert = (proven_safe.saturating_sub(fixed_cpu)) / hash_cpu;
+        eprintln!("MEASURE max depth @ 1 insert (≤208M proven-safe) = {}", max_d_1insert);
+        eprintln!(
+            "MEASURE this build: depth {} transfer = {}M — {}",
+            depth,
+            transfer_cpu / 1_000_000,
+            if transfer_cpu <= proven_safe { "within proven-safe 208M" } else { "ABOVE 208M (relies on true ceiling > this; verify on-chain)" }
+        );
     }
 }
 

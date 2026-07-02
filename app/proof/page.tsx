@@ -251,8 +251,8 @@ export default function ProofPage() {
           <Fact label="Curve" value="BLS12-381" />
           <Fact label="On-chain verify" value="CAP-0059 host fns" />
           <Fact label="Hash" value="Poseidon" />
-          <Fact label="Circuits" value="Circom (shield · withdraw · transfer)" />
-          <Fact label="Merkle depth" value="6 (64 notes)" />
+          <Fact label="Circuits" value="Circom (shield · withdraw · transfer · claim)" />
+          <Fact label="Merkle depth" value="13 (8,192 notes)" />
           <Fact label="Shield public inputs" value="[commitment, amount]" />
           <Fact label="Withdraw public inputs" value="[root, nullifier, recipient, amount, change]" />
           <Fact label="Transfer public inputs" value="[root, nullifier, out₁, out₂]" />

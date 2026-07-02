@@ -115,7 +115,7 @@ export const READINESS: ReadinessItem[] = [
   { label: "Amount privacy", status: "roadmap", detail: "Private sends already hide amounts (join-split, hidden on-chain) and withdrawals keep private change; shield + the withdrawn amount stay public. Full confidential amounts on every path is roadmap." },
   { label: "Fee-privacy relayer", status: "roadmap", detail: "The fee payer is visible on-chain; a relayer removes that correlation." },
   { label: "Production indexer", status: "roadmap", detail: "Scalable note discovery from the deploy ledger onward." },
-  { label: "Merkle depth", status: "required", detail: "Depth 6 (64 notes) today — sized so two inserts fit the per-tx budget; a production depth (e.g. 20, ~1M notes) needs a recompile + new ceremony." },
+  { label: "Merkle depth", status: "required", detail: "Depth 13 (8,192 notes) today — every entrypoint does at most ONE Merkle insert (a private send defers the recipient's note to a claim), so a spend fits Stellar's per-tx compute budget at this depth (verified on-chain). A production depth (e.g. 20, ~1M notes) needs in-circuit insertion or a rollup." },
 ];
 
 export const BEFORE_REAL_ASSETS: string[] = [
