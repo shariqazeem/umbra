@@ -13,7 +13,9 @@ export {
   buildShieldInput,
   buildWithdrawInput,
   buildTransferInput,
+  buildClaimInput,
   type ShieldInput,
   type WithdrawInput,
   type TransferInput,
+  type ClaimInput,
 } from "./witness.js";

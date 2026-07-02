@@ -1,15 +1,14 @@
-// A "private send" claim — the out-of-band handoff of a confidential-transfer OUTPUT note
-// to its recipient. The sender creates the output note, submits the transfer (amount
-// hidden on-chain), and hands the recipient this claim (secret + value + the on-chain leaf
-// index) so they can import and later spend it. It is delivered via a link/QR, never on
-// chain. Treat the link like cash: it is a BEARER token — whoever holds it can claim the
-// note, so share it privately. (A recipient-addressed, encrypted variant is future work —
-// it needs the recipient's public key.)
+// A "private send" claim — the out-of-band handoff of a confidential-transfer OUTPUT note to
+// its recipient. The sender creates the output note and submits the transfer (amount hidden
+// on-chain); the recipient's note is NOT inserted on-chain by the transfer — it is recorded
+// "pending". This claim carries just the opening (secret + value); the recipient inserts the
+// note themselves at claim time (proving the opening → claim_insert), which is what makes the
+// transfer a single on-chain insert. Delivered via a link/QR, never on chain. Treat it like
+// cash: a BEARER token — whoever holds it can claim the note, so share it privately.
 
 export interface PrivateSendClaim {
   secret: bigint;
   value: bigint;
-  leafIndex: number;
 }
 
 function b64urlEncode(s: string): string {
@@ -26,20 +25,16 @@ function b64urlDecode(s: string): string {
 }
 
 export function encodeClaim(claim: PrivateSendClaim): string {
-  const json = JSON.stringify({
-    s: claim.secret.toString(),
-    v: claim.value.toString(),
-    l: claim.leafIndex,
-  });
+  const json = JSON.stringify({ s: claim.secret.toString(), v: claim.value.toString() });
   return b64urlEncode(json);
 }
 
 export function decodeClaim(code: string): PrivateSendClaim {
-  const j = JSON.parse(b64urlDecode(code.trim())) as { s: string; v: string; l: number };
-  if (typeof j.s !== "string" || typeof j.v !== "string" || typeof j.l !== "number") {
+  const j = JSON.parse(b64urlDecode(code.trim())) as { s: string; v: string };
+  if (typeof j.s !== "string" || typeof j.v !== "string") {
     throw new Error("malformed private-send claim");
   }
-  return { secret: BigInt(j.s), value: BigInt(j.v), leafIndex: Number(j.l) };
+  return { secret: BigInt(j.s), value: BigInt(j.v) };
 }
 
 export function claimUrl(code: string): string {

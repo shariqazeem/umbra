@@ -29,6 +29,7 @@ fn fixtures_present() -> bool {
     build_dir().join("shield_soroban.json").exists()
         && build_dir().join("withdraw_soroban.json").exists()
         && build_dir().join("transfer_soroban.json").exists()
+        && build_dir().join("claim_soroban.json").exists()
 }
 
 fn b<const N: usize>(env: &Env, h: &str) -> BytesN<N> {
@@ -79,6 +80,7 @@ struct Ctx<'a> {
     token: token::TokenClient<'a>,
     withdraw: Fixture,
     transfer: Fixture,
+    claim: Fixture,
 }
 
 /// Register the pool + a test asset, init with both VKs, mint to a depositor, and
@@ -91,6 +93,7 @@ fn setup<'a>() -> Ctx<'a> {
     let shield = load(&env, "shield");
     let withdraw = load(&env, "withdraw");
     let transfer = load(&env, "transfer");
+    let claim = load(&env, "claim");
 
     // Test asset.
     let admin = Address::generate(&env);
@@ -105,7 +108,13 @@ fn setup<'a>() -> Ctx<'a> {
     // Pool — initialized atomically via the constructor (H1: no separate init call).
     let id = env.register(
         UmbraPool,
-        (token_addr.clone(), shield.vk.clone(), withdraw.vk.clone(), transfer.vk.clone()),
+        (
+            token_addr.clone(),
+            shield.vk.clone(),
+            withdraw.vk.clone(),
+            transfer.vk.clone(),
+            claim.vk.clone(),
+        ),
     );
     let client = UmbraPoolClient::new(&env, &id);
 
@@ -115,7 +124,7 @@ fn setup<'a>() -> Ctx<'a> {
     assert_eq!(leaf, 0);
     assert_eq!(token.balance(&id), AMOUNT, "pool holds the shielded funds");
 
-    Ctx { env, client, token, withdraw, transfer }
+    Ctx { env, client, token, withdraw, transfer, claim }
 }
 
 // withdraw publics = [root, nullifier, recipient, amount, change_commitment]
@@ -266,9 +275,8 @@ fn wrong_payee_rejected() {
     assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "the bound payee is paid");
 }
 
-// Confidential transfer: spend the input note into two output commitments. Amounts are
-// hidden (no amount is a public input), value never leaves the pool, and the chain sees
-// only a spent nullifier + two new commitments.
+// Confidential transfer (1-insert): spend the input note; only the change (out2) is inserted,
+// the recipient note (out1) is recorded pending. Amounts hidden, no token moves.
 #[test]
 fn confidential_transfer_works() {
     if !fixtures_present() {
@@ -284,10 +292,9 @@ fn confidential_transfer_works() {
     let out2 = t.publics.get_unchecked(3);
 
     let before = ctx.client.next_index();
-    let (leaf1, leaf2) = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
-    assert_eq!(leaf1, before, "first output inserted at the next slot");
-    assert_eq!(leaf2, before + 1, "second output inserted after it");
-    assert_eq!(ctx.client.next_index(), before + 2, "two output commitments inserted");
+    let leaf2 = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
+    assert_eq!(leaf2, before, "the change (out2) is inserted at the next slot");
+    assert_eq!(ctx.client.next_index(), before + 1, "ONLY the change is inserted (1-insert transfer)");
     assert!(ctx.client.is_spent(&nullifier), "the input note's nullifier is spent");
     // No token moved — the pool still holds exactly the shielded amount.
     assert_eq!(ctx.token.balance(&ctx.client.address), AMOUNT, "value stays in the pool");
@@ -295,6 +302,43 @@ fn confidential_transfer_works() {
     // Double-spend of the same input note is rejected.
     let again = ctx.client.try_transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
     assert!(again.is_err(), "reusing the spent nullifier must fail");
+}
+
+// Register-on-claim: after a transfer pends the recipient note (out1), the recipient proves its
+// opening and claim_insert adds it to the tree. Claiming a NON-pending commitment (no backing
+// spend) is rejected — this is what prevents minting notes from nothing (inflation).
+#[test]
+fn claim_insert_works() {
+    if !fixtures_present() {
+        eprintln!("SKIP claim_insert: proof fixtures absent");
+        return;
+    }
+    let ctx = setup();
+    let t = &ctx.transfer;
+    let root = t.publics.get_unchecked(0);
+    let nullifier = t.publics.get_unchecked(1);
+    let out1 = t.publics.get_unchecked(2);
+    let out2 = t.publics.get_unchecked(3);
+    // claim publics = [commitment]; the fixture's commitment IS the transfer's out1.
+    let commitment = ctx.claim.publics.get_unchecked(0);
+    assert_eq!(commitment, out1, "claim fixture must open the transfer's recipient note");
+
+    // Before any transfer, out1 is NOT pending → a claim (that would mint value) is rejected.
+    let no_backing =
+        ctx.client.try_claim_insert(&ctx.claim.proof, &commitment, &Bytes::new(&ctx.env));
+    assert!(no_backing.is_err(), "claiming a non-pending commitment must fail (no inflation)");
+
+    // Do the transfer → out1 becomes pending; only out2 (change) is inserted.
+    let leaf2 = ctx.client.transfer(&t.proof, &root, &nullifier, &out1, &out2, &Bytes::new(&ctx.env));
+
+    // Now the recipient claims out1 → it is inserted at the next slot.
+    let leaf1 = ctx.client.claim_insert(&ctx.claim.proof, &commitment, &Bytes::new(&ctx.env));
+    assert_eq!(leaf1, leaf2 + 1, "the claimed note is inserted after the change");
+    assert_eq!(ctx.client.next_index(), leaf2 + 2, "both notes now in the tree");
+
+    // Double-claim is rejected (the pending flag was consumed).
+    let again = ctx.client.try_claim_insert(&ctx.claim.proof, &commitment, &Bytes::new(&ctx.env));
+    assert!(again.is_err(), "a note can be claimed only once");
 }
 
 #[test]

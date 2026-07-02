@@ -223,7 +223,7 @@ export async function submitTransfer(
   },
   signer: Signer,
   onStatus?: (p: SubmitPhase) => void,
-): Promise<{ hash: string; leaf1: number; leaf2: number }> {
+): Promise<{ hash: string; changeLeaf: number }> {
   const sdk = await import("@stellar/stellar-sdk");
   const res = await invoke(
     sdk,
@@ -239,29 +239,34 @@ export async function submitTransfer(
     signer,
     onStatus,
   );
-  // transfer() returns (leaf1, leaf2) — the on-chain indices of the recipient + change
-  // commitments. The recipient needs leaf1 to build the Merkle path for the received note.
-  const ret =
-    res.returnValue != null ? (sdk.scValToNative(res.returnValue) as [number, number]) : [0, 0];
-  return { hash: res.hash, leaf1: Number(ret[0] ?? 0), leaf2: Number(ret[1] ?? 0) };
+  // transfer() now inserts ONLY the change (out2) and returns its leaf; the recipient note
+  // (out1) is pending until the recipient claims it (submitClaimInsert).
+  const changeLeaf = res.returnValue != null ? Number(sdk.scValToNative(res.returnValue)) : 0;
+  return { hash: res.hash, changeLeaf };
 }
 
 /**
- * Register an encrypted opening for a RECEIVED note (claimed via a bearer link) so it recovers
- * cross-device. Emits NoteRegistered(leaf_index, note_ct); pure associated data, moves nothing.
+ * Claim a received private-send note: prove its opening (the claim circuit) and have the
+ * contract insert the pending commitment + emit its encrypted opening for cross-device
+ * recovery. Returns the on-chain leaf the note landed at.
  */
-export async function submitRegisterNote(
-  args: { leafIndex: number; noteCt: Uint8Array },
+export async function submitClaimInsert(
+  args: { proof: Groth16ProofJson; commitment: bigint; noteCt: Uint8Array },
   signer: Signer,
   onStatus?: (p: SubmitPhase) => void,
-): Promise<{ hash: string }> {
+): Promise<{ hash: string; leaf: number }> {
   const sdk = await import("@stellar/stellar-sdk");
   const res = await invoke(
     sdk,
-    "register_note",
-    [sdk.nativeToScVal(args.leafIndex, { type: "u32" }), sdk.nativeToScVal(args.noteCt)],
+    "claim_insert",
+    [
+      proofScVal(sdk, args.proof.proof),
+      sdk.nativeToScVal(bytes32(args.commitment)),
+      sdk.nativeToScVal(args.noteCt),
+    ],
     signer,
     onStatus,
   );
-  return { hash: res.hash };
+  const leaf = res.returnValue != null ? Number(sdk.scValToNative(res.returnValue)) : 0;
+  return { hash: res.hash, leaf };
 }
