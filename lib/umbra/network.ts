@@ -94,6 +94,17 @@ export function activeContracts(): NetworkContracts | null {
   return NETWORKS[ACTIVE_NETWORK];
 }
 
+/** stellar.expert base for the ACTIVE network (…/explorer/testnet vs …/explorer/public). */
+export function explorerBase(): string {
+  return NETWORKS[ACTIVE_NETWORK]?.explorer ?? "https://stellar.expert/explorer/testnet";
+}
+export function explorerTxUrl(hash: string): string {
+  return `${explorerBase()}/tx/${hash}`;
+}
+export function explorerContractUrl(id: string): string {
+  return `${explorerBase()}/contract/${id}`;
+}
+
 /* ── Readiness scorecard (what the /mainnet page renders) ── */
 
 export type ReadinessStatus = "live" | "gated" | "required" | "roadmap";
@@ -109,7 +120,7 @@ export const READINESS: ReadinessItem[] = [
   { label: "Browser proving", status: "live", detail: "Proofs generated client-side (snarkjs, Web Worker). Secrets never leave the device." },
   { label: "Cross-device recovery", status: "live", detail: "Private balance rebuilt from on-chain events using a deterministic wallet-derived seed." },
   { label: "Selective disclosure", status: "live", detail: "Encrypted audit packets under a user-held viewing key. No backdoor." },
-  { label: "Mainnet deployment", status: "gated", detail: "Not deployed. Gated behind the security blockers below; flags default to OFF." },
+  { label: "Mainnet deployment", status: "gated", detail: "An invite-only, capped canary may run on mainnet (self-reviewed, not audited, hard per-deposit cap); full public deposits stay gated behind the blockers below until they clear." },
   { label: "Trusted setup", status: "required", detail: "Groth16 needs an MPC ceremony — or a migration to a transparent proof system (UltraHonk)." },
   { label: "Independent audit", status: "required", detail: "Contract, circuits, and the BLS verifier path must be audited before real assets." },
   { label: "Amount privacy", status: "roadmap", detail: "Private sends already hide amounts (join-split, hidden on-chain) and withdrawals keep private change; shield + the withdrawn amount stay public. Full confidential amounts on every path is roadmap." },

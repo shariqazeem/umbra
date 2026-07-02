@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ArrowUpRight, Eye, FileJson, KeyRound, Lock, Upload } from "lucide-react";
 import { Button, Card, Eyebrow, Field, Pill, Shell } from "@/components/umbra/ui";
 import { decryptAuditPacket, importViewingKey, type AuditRecord } from "@/lib/umbra/viewing-key";
+import { explorerTxUrl } from "@/lib/umbra/network";
 
 const KIND_LABEL: Record<AuditRecord["kind"], string> = {
   shield: "Shield · deposit",
@@ -63,7 +64,7 @@ function publicView(r: AuditRecord): string {
 
 function explorer(r: AuditRecord): string | null {
   if (r.explorerUrl) return r.explorerUrl;
-  if (r.txHash && !r.txHash.includes("…")) return `https://stellar.expert/explorer/testnet/tx/${r.txHash}`;
+  if (r.txHash && !r.txHash.includes("…")) return explorerTxUrl(r.txHash);
   return null;
 }
 

@@ -14,7 +14,7 @@
 #   1. Loud preflight + a typed confirmation. Verifies the deployer is funded with
 #      real XLM, the wasm target + fixtures exist, and an RPC is set.
 #   2. Build + upload the hardened wasm; resolve the native XLM SAC on mainnet;
-#      deploy umbra_pool via its constructor (token + both verifying keys, atomic).
+#      deploy umbra_pool via its constructor (token + all 4 verifying keys, atomic).
 #   3. Write infra/deploy/deployment.mainnet.json.
 #
 # Idempotent: if deployment.mainnet.json already names a pool it exits 0. --force
@@ -96,7 +96,7 @@ preflight() {
     "export UMBRA_RPC_URL=https://<your-mainnet-soroban-rpc>   # Validation Cloud / Blockdaemon / QuickNode / self-hosted"
 
   local f
-  for f in shield_soroban.json withdraw_soroban.json; do
+  for f in shield_soroban.json withdraw_soroban.json transfer_soroban.json claim_soroban.json; do
     [ -f "$BUILD/$f" ] || fail "missing circuit fixture $BUILD/$f" "bash circuits/scripts/build-slice.sh"
   done
 
@@ -168,15 +168,16 @@ main() {
   [ -n "$UMBRA_TOKEN" ] || fail "could not resolve the native SAC contract id on mainnet" ""
   ok "token (native SAC): $UMBRA_TOKEN"
 
-  step "deploy umbra_pool (constructor binds token + verifying keys — atomic, H1)"
-  local vk_shield vk_withdraw vk_transfer dlog
+  step "deploy umbra_pool (constructor binds token + 4 verifying keys — atomic, H1)"
+  local vk_shield vk_withdraw vk_transfer vk_claim dlog
   vk_shield="$(jq -c '.vk' "$BUILD/shield_soroban.json")"
   vk_withdraw="$(jq -c '.vk' "$BUILD/withdraw_soroban.json")"
   vk_transfer="$(jq -c '.vk' "$BUILD/transfer_soroban.json")"
+  vk_claim="$(jq -c '.vk' "$BUILD/claim_soroban.json")"
   dlog="$(mktemp)"
   POOL="$(stellar contract deploy --wasm-hash "$WASM_HASH" \
             --source-account "$UMBRA_DEPLOYER" --network "$UMBRA_NETWORK" \
-            -- --token "$UMBRA_TOKEN" --vk_shield "$vk_shield" --vk_withdraw "$vk_withdraw" --vk_transfer "$vk_transfer" 2>"$dlog")"
+            -- --token "$UMBRA_TOKEN" --vk_shield "$vk_shield" --vk_withdraw "$vk_withdraw" --vk_transfer "$vk_transfer" --vk_claim "$vk_claim" 2>"$dlog")"
   cat "$dlog" >&2
   DEPLOY_TX="$(extract_txhash "$dlog")"
   rm -f "$dlog"

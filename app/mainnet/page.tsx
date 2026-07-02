@@ -7,7 +7,7 @@ import { MainnetGate } from "@/components/umbra/mainnet-gate";
 import { BEFORE_REAL_ASSETS, READINESS, type ReadinessStatus } from "@/lib/umbra/network";
 
 const STATUS: Record<ReadinessStatus, { label: string; dot: string; text: string }> = {
-  live: { label: "Live · testnet", dot: "bg-[#FF3B00]", text: "text-[#FF3B00]" },
+  live: { label: "Live", dot: "bg-[#FF3B00]", text: "text-[#FF3B00]" },
   gated: { label: "Security-gated", dot: "bg-amber-500", text: "text-amber-500" },
   required: { label: "Required", dot: "bg-destructive", text: "text-destructive" },
   roadmap: { label: "Roadmap", dot: "bg-muted-foreground/50", text: "text-muted-foreground" },
@@ -51,8 +51,8 @@ export default function MainnetPage() {
             Umbra currently provides <span className="text-foreground">link privacy</span>, not confidential amounts.
             On-chain, an observer can see a deposit and a withdrawal and their <span className="text-foreground">amounts</span> —
             what they cannot see is <span className="text-foreground">which deposit funded which withdrawal</span>. The
-            current testnet pool is <span className="text-foreground">not audited</span> and should not be used for real
-            assets until the readiness checklist below is complete.
+            current pool is <span className="text-foreground">not audited</span> and should be treated as an experimental
+            canary — only expose amounts you can afford to lose until the readiness checklist below is complete.
           </p>
         </Card>
 

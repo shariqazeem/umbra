@@ -26,6 +26,7 @@ import { addressToField, submitShield, submitTransfer, submitWithdraw } from "@/
 import { createPaymentLink, linkUrl, type CreatedLink } from "@/lib/umbra/payment-link";
 import { encodeClaim, claimUrl } from "@/lib/umbra/private-send";
 import { isChainConfigured } from "@/lib/umbra/config";
+import { explorerTxUrl } from "@/lib/umbra/network";
 import { xlmToStroops, stroopsToXlm } from "@/lib/umbra/units";
 import { auditStore } from "@/lib/umbra/audit-store";
 import { DisclosureKit } from "@/components/umbra/disclosure-kit";
@@ -41,7 +42,7 @@ const signerKey = (s: Signer) => (s.kind === "key" ? `key:${s.secret.slice(0, 10
 
 const NO_NOTES: WalletNote[] = [];
 const ASSET = "XLM";
-const EXPLORER_TX = (h: string) => `https://stellar.expert/explorer/testnet/tx/${h}`;
+const EXPLORER_TX = (h: string) => explorerTxUrl(h);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type View = "home" | "shield" | "send" | "transfer" | "unshield" | "paylink";
@@ -839,7 +840,7 @@ function Success({
         </p>
         {msg ? (
           <a
-            href={`https://stellar.expert/explorer/testnet/tx/${msg}`}
+            href={EXPLORER_TX(msg)}
             target="_blank"
             rel="noreferrer noopener"
             referrerPolicy="no-referrer"
@@ -905,7 +906,7 @@ function Success({
       </div>
       {msg ? (
         <a
-          href={`https://stellar.expert/explorer/testnet/tx/${msg}`}
+          href={EXPLORER_TX(msg)}
           target="_blank"
           rel="noreferrer noopener"
           referrerPolicy="no-referrer"

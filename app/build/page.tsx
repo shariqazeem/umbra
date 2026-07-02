@@ -15,11 +15,14 @@ import {
 } from "lucide-react";
 import { Button, Card, Eyebrow, Pill, Shell } from "@/components/umbra/ui";
 import { CopyButton } from "@/components/copy-button";
+import { UMBRA_CONFIG } from "@/lib/umbra/config";
+import { explorerContractUrl } from "@/lib/umbra/network";
 
-const POOL = "CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX";
-const NETWORK = "Test SDF Network ; September 2015";
-const RPC = "https://soroban-testnet.stellar.org";
-const EXPLORER = `https://stellar.expert/explorer/testnet/contract/${POOL}`;
+// Follow whatever network the app is armed for (env-driven) rather than hardcoding testnet.
+const POOL = UMBRA_CONFIG.poolContractId || "CBA5KVEZQLFGYGGK6Z3HPWBGYVZVDXAL5LNQIS7ISHVGBNB2V43DVXYA";
+const NETWORK = UMBRA_CONFIG.networkPassphrase;
+const RPC = UMBRA_CONFIG.rpcUrl;
+const EXPLORER = explorerContractUrl(POOL);
 
 const CREATE = `import {
   makeNote, commitment, buildShieldInput,
