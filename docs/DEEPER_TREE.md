@@ -1,7 +1,10 @@
 # #3 — Deeper tree (capacity) design
 
-Branch: `feat/deeper-tree` · Fallback: tag `v0.1.0-testnet` (main). Status: **investigated +
-designed, implementation pending confirmation.**
+Branch: `feat/deeper-tree` · Fallback: tag `v0.1.0-testnet` (main). Status: **SHIPPED —
+depth 13 (8,192 notes) live and verified on-chain.** A real shield, join-split transfer,
+register-on-claim, and worst-case withdraw all fit Stellar's per-tx budget at depth 13 on
+testnet (see the tx hashes in `infra/deploy/deployment.json` → `demoTxs`). A 128× capacity
+increase over the depth-6 checkpoint, with zero change to the security model.
 
 ## The measurement (committed benchmark: `measure_depth_budget`)
 
@@ -10,8 +13,10 @@ designed, implementation pending confirmation.**
 | One Poseidon permutation (params reused) | **13.1M CPU** |
 | Deserialize Poseidon constants | 0.76M CPU (negligible) |
 | Verify + overhead (fixed per tx) | ~42M CPU |
-| Transfer @ depth 6 (**2 inserts** = 12 permutations) | **208M CPU** |
-| Soroban per-tx ceiling | **~250M** (depth-8 transfer = 263M → the prior `TxSorobanInvalid`) |
+| Transfer @ depth 6 (**2 inserts** = 12 permutations) | **208M CPU** (proven-good) |
+| Soroban per-tx ceiling | **~250M** (depth-8 2-insert = 263M → the prior `TxSorobanInvalid`) |
+| **Transfer @ depth 13 (1 insert = 13 permutations), measured** | **220.7M CPU** |
+| **↳ real withdraw @ depth 13 (1 insert + token transfer), on-chain** | **SUCCEEDED** ✓ |
 
 **Conclusion:** depth is **permutation-bound**. Each tree level = one 13.1M permutation; a
 transfer pays for `2 × depth` of them. The floor can't drop without changing the hash (which
@@ -52,16 +57,18 @@ The contract's incremental-tree root must stay **byte-identical** to the wallet/
 the existing fixture tests fail loudly on any divergence, so a tree bug cannot ship silently.
 `main` + the `v0.1.0-testnet` tag are the fallback if anything regresses.
 
-## Implementation steps
+## Implementation steps — ALL DONE ✓
 
-1. Add `circuits/src/claim.circom` (commitment opening, value private) + build + trusted setup
-   → `vk_claim`. Constructor gains a 4th VK.
-2. Contract: `transfer` → 1 insert + pending; add `claim_insert`; `DataKey::Pending`. Tests.
-3. Wallet: transfer emits `out1` opening (no leaf) in the link; claim proves + `claim_insert`;
-   recovery unchanged.
-4. Rebuild circuits at **depth 13** (then try 14), redeploy, and **submit a real transfer +
-   claim on testnet** to confirm the tx fits the budget (the true test, not just simulation).
-5. Bump `merkleDepth` in `deployment.json`; update capacity copy on `/mainnet`.
+1. ✓ Added `circuits/src/claim.circom` (commitment opening, value private) + build + trusted
+   setup → `vk_claim`. Constructor gained a 4th VK.
+2. ✓ Contract: `transfer` → 1 insert + pending; `claim_insert`; `DataKey::Pending`. 14/14 tests.
+3. ✓ Wallet: transfer emits `out1` opening (no leaf) in the link; claim proves + `claim_insert`;
+   recovery follows the `NoteRegistered` events. 30/30 unit.
+4. ✓ Rebuilt circuits at **depth 13**, redeployed, and submitted **real transfer + claim +
+   withdraw on testnet** — every op fit the budget (the true test, not just simulation). We
+   stopped at 13 (not 14): the measured 1-insert transfer is 220.7M, comfortably below the
+   ~250M ceiling; 14 (≈234M) is closer to the edge and buys only 2× for more risk.
+5. ✓ Bumped `merkleDepth` to 13 in `deployment.json` (+ `demoTxs`); updated capacity copy.
 
 ## Realistic outcome
 
