@@ -297,6 +297,13 @@ fn noncanonical_nullifier_rejected() {
     ctx.client
         .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
 
+    // Remove the insufficient-balance excuse (Fable-5 re-audit finding): fund the pool so a
+    // wrongly-accepted replay would ACTUALLY have funds to pay a second time. Now the ONLY
+    // thing that can stop the double payout is the verifier's canonical-input gate — so this
+    // test genuinely PINS the fix (it fails if the gate is removed), rather than passing merely
+    // because the pool ran dry on the change-keeping first spend.
+    token::StellarAssetClient::new(&ctx.env, &ctx.token.address).mint(&ctx.client.address, &WITHDRAW_AMT);
+
     // n' = n + r reduces to the same scalar (proof still verifies against it) but is a
     // DIFFERENT 32-byte key. It must be rejected, NOT treated as a fresh unspent nullifier.
     let alias = BytesN::from_array(&ctx.env, &be_add(&nullifier.to_array(), &FR_MODULUS));
@@ -304,6 +311,7 @@ fn noncanonical_nullifier_rejected() {
         .client
         .try_withdraw(&ctx.withdraw.proof, &root, &alias, &recipient, &WITHDRAW_AMT, &change, &true, &to);
     assert!(replay.is_err(), "non-canonical nullifier alias (n+r) must be rejected, not double-spent");
+    assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "no second payout — the canonical gate rejected the alias");
 }
 
 #[test]
