@@ -50,14 +50,20 @@ const tree = new MerkleTree();
 note.leafIndex = tree.insert(cm);
 
 // 2. Build the shield + withdraw circuit inputs. Withdraw is a join-split: pay a PUBLIC
-// amount out to RECIPIENT and keep the remainder as a private change note.
+// amount out to RECIPIENT and keep the remainder as a private change note (has_change = 1).
 const shieldInput = buildShieldInput(note);
 const WITHDRAW_AMT = 600n; // public withdrawal
 const withdrawChange = makeNote(AMOUNT - WITHDRAW_AMT); // 400 → private change
 const withdrawInput = buildWithdrawInput(note, tree, RECIPIENT, WITHDRAW_AMT, withdrawChange);
 
+// Full-exit withdraw (has_change = 0): withdraw the WHOLE note, no change, no insert — the
+// escape hatch that lets a note always be withdrawn even when the tree is full.
+const exitChange = makeNote(0n);
+const withdrawExitInput = buildWithdrawInput(note, tree, RECIPIENT, AMOUNT, exitChange);
+
 writeFileSync(join(build, "shield_input.json"), JSON.stringify(shieldInput, null, 2));
 writeFileSync(join(build, "withdraw_input.json"), JSON.stringify(withdrawInput, null, 2));
+writeFileSync(join(build, "withdraw_exit_input.json"), JSON.stringify(withdrawExitInput, null, 2));
 
 // 3. Confidential transfer (join-split, 1-in / 2-out): spend the shielded note into a
 // recipient note + a change note. Values are private; only conservation is enforced.

@@ -174,6 +174,7 @@ export async function submitWithdraw(
     recipient: bigint;
     amount: bigint;
     changeCommitment: bigint;
+    hasChange: boolean;
     to: string;
   },
   signer: Signer,
@@ -190,6 +191,7 @@ export async function submitWithdraw(
       sdk.nativeToScVal(bytes32(args.recipient)),
       sdk.nativeToScVal(args.amount, { type: "i128" }),
       sdk.nativeToScVal(bytes32(args.changeCommitment)),
+      sdk.nativeToScVal(args.hasChange),
       new sdk.Address(args.to).toScVal(),
     ],
     signer,
@@ -202,8 +204,9 @@ export async function submitWithdraw(
 
 /**
  * Confidential shielded→shielded transfer ("private send"). Spends the input note and
- * inserts one output commitment. No amount and no address are on-chain — the public
- * inputs are only [root, nullifier, out_commitment], so the transferred value is hidden.
+ * inserts TWO output commitments (recipient + change). No amount and no address are on-chain —
+ * the public inputs are only [root, nullifier, out_commitment1, out_commitment2], so the
+ * transferred value is hidden.
  */
 export async function submitTransfer(
   args: {

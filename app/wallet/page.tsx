@@ -230,6 +230,7 @@ export default function WalletPage() {
             recipient: BigInt(input.recipient),
             amount: BigInt(input.amount),
             changeCommitment: BigInt(input.changeCommitment),
+            hasChange: input.has_change === "1",
             to: payout,
           },
           wallet.signer,

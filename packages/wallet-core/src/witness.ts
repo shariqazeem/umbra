@@ -23,6 +23,8 @@ export interface WithdrawInput {
   recipient: string;
   amount: string;
   changeCommitment: string;
+  /** 1 = keep change (insert a change note); 0 = full exit (no insert — works at a full tree). */
+  has_change: string;
   secret: string;
   value: string;
   pathElements: string[];
@@ -55,6 +57,8 @@ export function buildWithdrawInput(
     recipient: recipient.toString(),
     amount: amount.toString(),
     changeCommitment: commitment(changeNote).toString(),
+    // A full exit (no change) needs no on-chain insert, so it works even when the tree is full.
+    has_change: changeNote.value > 0n ? "1" : "0",
     secret: note.secret.toString(),
     value: note.value.toString(),
     pathElements: p.pathElements.map((x) => x.toString()),

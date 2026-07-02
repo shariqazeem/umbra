@@ -168,7 +168,7 @@ fn happy_path_shield_then_withdraw() {
     let before = ctx.client.next_index();
     let change_leaf =
         ctx.client
-            .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
+            .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
 
     assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "recipient received the public amount");
     assert_eq!(
@@ -195,7 +195,7 @@ fn wrong_payee_rejected() {
     // Attacker observes the proof and tries to redirect the payout to themselves.
     let attacker = Address::generate(&ctx.env);
     let stolen = ctx.client.try_withdraw(
-        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &attacker,
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &attacker,
     );
     assert!(stolen.is_err(), "a proof bound to payee P must not pay a different address");
     assert!(!ctx.client.is_spent(&nullifier), "a rejected redirect must not burn the nullifier");
@@ -203,7 +203,7 @@ fn wrong_payee_rejected() {
     // The real (bound) payee can still withdraw.
     let to = payee(&ctx.env);
     ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
     assert_eq!(ctx.token.balance(&to), WITHDRAW_AMT, "the bound payee is paid");
 }
 
@@ -249,10 +249,10 @@ fn double_spend_rejected() {
     let to = payee(&ctx.env);
 
     ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
     // Second spend of the same nullifier must fail.
     let again = ctx.client.try_withdraw(
-        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to,
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to,
     );
     assert!(again.is_err(), "double spend must be rejected");
 }
@@ -295,14 +295,14 @@ fn noncanonical_nullifier_rejected() {
 
     // Legit spend with the canonical nullifier n.
     ctx.client
-        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
+        .withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
 
     // n' = n + r reduces to the same scalar (proof still verifies against it) but is a
     // DIFFERENT 32-byte key. It must be rejected, NOT treated as a fresh unspent nullifier.
     let alias = BytesN::from_array(&ctx.env, &be_add(&nullifier.to_array(), &FR_MODULUS));
     let replay = ctx
         .client
-        .try_withdraw(&ctx.withdraw.proof, &root, &alias, &recipient, &WITHDRAW_AMT, &change, &to);
+        .try_withdraw(&ctx.withdraw.proof, &root, &alias, &recipient, &WITHDRAW_AMT, &change, &true, &to);
     assert!(replay.is_err(), "non-canonical nullifier alias (n+r) must be rejected, not double-spent");
 }
 
@@ -324,7 +324,7 @@ fn invalid_proof_rejected() {
         b: ctx.withdraw.proof.b.clone(),
         c: ctx.withdraw.proof.c.clone(),
     };
-    let res = ctx.client.try_withdraw(&bad, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &to);
+    let res = ctx.client.try_withdraw(&bad, &root, &nullifier, &recipient, &WITHDRAW_AMT, &change, &true, &to);
     assert!(res.is_err(), "tampered proof must be rejected on-chain");
 }
 
@@ -345,7 +345,7 @@ fn wrong_recipient_rejected() {
     let wrong = BytesN::from_array(&ctx.env, &r);
 
     let res = ctx.client.try_withdraw(
-        &ctx.withdraw.proof, &root, &nullifier, &wrong, &WITHDRAW_AMT, &change, &to,
+        &ctx.withdraw.proof, &root, &nullifier, &wrong, &WITHDRAW_AMT, &change, &true, &to,
     );
     assert!(res.is_err(), "a proof bound to recipient R must not pay recipient R'");
 }
@@ -364,7 +364,7 @@ fn amount_mismatch_rejected() {
     // Asking to withdraw a DIFFERENT amount changes the public input → verification fails,
     // so a proof for amount A can never authorize withdrawing A+1.
     let res = ctx.client.try_withdraw(
-        &ctx.withdraw.proof, &root, &nullifier, &recipient, &(WITHDRAW_AMT + 1), &change, &to,
+        &ctx.withdraw.proof, &root, &nullifier, &recipient, &(WITHDRAW_AMT + 1), &change, &true, &to,
     );
     assert!(res.is_err(), "a proof for amount A must not authorize withdrawing A+1");
 }
@@ -390,7 +390,7 @@ fn nonpositive_amount_rejected() {
         );
         assert!(
             ctx.client
-                .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &bad, &change, &to)
+                .try_withdraw(&ctx.withdraw.proof, &root, &nullifier, &recipient, &bad, &change, &true, &to)
                 .is_err(),
             "withdraw must reject non-positive amount"
         );
@@ -417,4 +417,47 @@ fn tree_full_rejected() {
 
     let res = ctx.client.try_shield(&shield.proof, &commitment, &AMOUNT, &depositor);
     assert!(res.is_err(), "shield must be rejected when the tree is full");
+}
+
+// Critical #1 — a FULL EXIT (has_change == false, change == 0) inserts NO leaf, so a note can
+// be withdrawn even when the Merkle tree is completely full. This is the escape hatch that
+// guarantees pooled funds can never get permanently stuck.
+#[test]
+fn full_exit_works_when_tree_full() {
+    if !fixtures_present() || !build_dir().join("withdraw_exit_soroban.json").exists() {
+        eprintln!("SKIP full_exit: full-exit fixture absent (run build-slice.sh)");
+        return;
+    }
+    let ctx = setup();
+    let exit = load(&ctx.env, "withdraw_exit");
+    // exit publics = [root, nullifier, recipient, amount(=AMOUNT), changeCommitment, has_change(=0)]
+    let root = exit.publics.get_unchecked(0);
+    let nullifier = exit.publics.get_unchecked(1);
+    let recipient = exit.publics.get_unchecked(2);
+    let change = exit.publics.get_unchecked(4);
+    let to = payee(&ctx.env);
+
+    // Force the tree to capacity. A change-keeping withdraw or a transfer would now revert
+    // with TreeFull; the full exit must still succeed.
+    let id = ctx.client.address.clone();
+    ctx.env.as_contract(&id, || {
+        ctx.env.storage().instance().set(&crate::DataKey::NextIndex, &64u32);
+    });
+
+    let leaf = ctx
+        .client
+        .withdraw(&exit.proof, &root, &nullifier, &recipient, &AMOUNT, &change, &false, &to);
+    assert_eq!(leaf, 0, "a full exit inserts no leaf (returns the 0 sentinel)");
+    assert_eq!(ctx.token.balance(&to), AMOUNT, "the whole note is paid out at a full tree");
+    assert_eq!(ctx.client.next_index(), 64, "no leaf was inserted");
+    assert_eq!(ctx.token.balance(&ctx.client.address), 0, "pool paid out");
+    assert!(ctx.client.is_spent(&nullifier), "the note is spent");
+
+    // And a change-keeping withdraw at a full tree is correctly rejected (needs a free leaf).
+    let full = load(&ctx.env, "withdraw");
+    let (r2, n2, rec2, ch2) = parts(&full);
+    let partial = ctx
+        .client
+        .try_withdraw(&full.proof, &r2, &n2, &rec2, &WITHDRAW_AMT, &ch2, &true, &payee(&ctx.env));
+    assert!(partial.is_err(), "a change-keeping withdraw must still fail when the tree is full");
 }

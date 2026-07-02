@@ -9,7 +9,7 @@
 //!                  spent nullifiers / unknown roots, pay the recipient.
 //!
 //! Storage: commitments (as a Poseidon incremental tree: frontier + roots),
-//! nullifiers (persistent set). Events: DepositCreated, WithdrawalCompleted.
+//! nullifiers (persistent set). Events: DepositCreated, WithdrawalCompleted, TransferCompleted.
 
 use groth16_verifier::{verify_groth16, Proof, VerifyingKey};
 use soroban_sdk::{
@@ -124,13 +124,19 @@ impl UmbraPool {
             return Err(Error::InvalidProof);
         }
 
-        // Pull funds into the pool.
         depositor.require_auth();
+
+        // CEI ordering: perform the state effect (insert) BEFORE the external interaction
+        // (token pull), so even a hostile token contract could not reenter to insert past
+        // capacity. The pooled asset is the native XLM SAC (no callbacks) — this is defense in
+        // depth. If the pull fails, the whole tx reverts and the insert is rolled back.
+        let leaf_index = Self::insert_commitment(&env, &commitment);
+
+        // Keep the contract instance live under active use (tree state, VKs, token).
+        s.extend_ttl(100_000, 1_000_000);
+
         let tk: Address = s.get(&DataKey::Token).unwrap();
         token::Client::new(&env, &tk).transfer(&depositor, &env.current_contract_address(), &amount);
-
-        // Insert the commitment and advance the tree.
-        let leaf_index = Self::insert_commitment(&env, &commitment);
 
         env.events().publish(
             (Symbol::new(&env, "DepositCreated"),),
@@ -139,20 +145,18 @@ impl UmbraPool {
         Ok(leaf_index)
     }
 
-    /// Withdraw `amount` to `to`, authorized by a withdraw proof.
-    ///
-    /// Verifies inclusion under a known `root`, the `nullifier` derivation, recipient
-    /// binding, and amount conservation; rejects spent nullifiers; pays `to`; emits
     /// Shielded→public withdrawal with PRIVATE CHANGE (join-split, 1-in / 1-public-out / 1-change).
     ///
     /// Verifies the withdraw proof (inclusion of the spent note, its nullifier, a well-formed
-    /// change commitment, value conservation `value == amount + change`, and a 64-bit range on
-    /// every amount), spends the nullifier, inserts the change commitment as a new private note
-    /// that stays in the pool, and pays the PUBLIC `amount` out to `to`. Only `amount` is public;
-    /// the change value is hidden. This is the arbitrary-amount cash-out.
+    /// change commitment, value conservation `value == amount + change`, a 64-bit range on every
+    /// amount, and the C1 recipient binding), spends the nullifier, and pays the PUBLIC `amount`
+    /// out to `to`. When `has_change` is true it inserts the change commitment as a new private
+    /// note; when false (a FULL EXIT, where the circuit forces change == 0) it inserts nothing and
+    /// needs no free leaf — so a note can always be withdrawn even when the tree is full. Only
+    /// `amount` is public; the change value is hidden.
     ///
-    /// Public inputs (pinned order): [root, nullifier, recipient, amount, change_commitment].
-    /// Emits WithdrawalCompleted; returns the change note's leaf index (for the sender to observe).
+    /// Public inputs (pinned order): [root, nullifier, recipient, amount, change_commitment, has_change].
+    /// Emits WithdrawalCompleted; returns the change note's leaf index (0 on a full exit).
     pub fn withdraw(
         env: Env,
         proof: Proof,
@@ -161,6 +165,7 @@ impl UmbraPool {
         recipient: BytesN<32>,
         amount: i128,
         change_commitment: BytesN<32>,
+        has_change: bool,
         to: Address,
     ) -> Result<u32, Error> {
         let s = env.storage().instance();
@@ -178,6 +183,7 @@ impl UmbraPool {
             recipient.clone(),
             amount_to_fr_bytes(&env, amount),
             change_commitment.clone(),
+            bool_to_fr_bytes(&env, has_change),
         ];
         if !verify_groth16(&env, &vk, &proof, &public_inputs) {
             return Err(Error::InvalidProof);
@@ -195,10 +201,15 @@ impl UmbraPool {
             return Err(Error::UnknownRoot);
         }
 
-        // The fixed-depth tree must have room for the change commitment.
-        let next: u32 = s.get(&DataKey::NextIndex).unwrap_or(0);
-        if next + 1 > (1u32 << (MERKLE_DEPTH as u32)) {
-            return Err(Error::TreeFull);
+        // Only a change-keeping withdrawal needs a free leaf. A FULL EXIT (has_change == false,
+        // where the circuit forces change == 0) inserts nothing, so it succeeds even when the
+        // tree is full — the escape hatch that guarantees funds can never get stuck. Checked
+        // before the nullifier spend so a full-tree partial withdrawal fails without burning the note.
+        if has_change {
+            let next: u32 = s.get(&DataKey::NextIndex).unwrap_or(0);
+            if next + 1 > (1u32 << (MERKLE_DEPTH as u32)) {
+                return Err(Error::TreeFull);
+            }
         }
 
         // Spend exactly once.
@@ -209,15 +220,25 @@ impl UmbraPool {
         env.storage().persistent().set(&nf_key, &true);
         env.storage().persistent().extend_ttl(&nf_key, 100_000, 1_000_000);
 
-        // Insert the change note (value stays in the pool), then pay the public amount out.
-        let change_leaf = Self::insert_commitment(&env, &change_commitment);
+        // Insert the change note iff we're keeping change. On a full exit, emit a zero-commitment
+        // sentinel so off-chain recovery knows no leaf was added (a real Poseidon commitment is
+        // never zero).
+        let (emitted_cm, change_leaf) = if has_change {
+            (change_commitment.clone(), Self::insert_commitment(&env, &change_commitment))
+        } else {
+            (BytesN::from_array(&env, &[0u8; 32]), 0u32)
+        };
 
+        // Keep the contract instance live under active use (tree state, VKs, token).
+        s.extend_ttl(100_000, 1_000_000);
+
+        // Pay the public amount out.
         let tk: Address = s.get(&DataKey::Token).unwrap();
         token::Client::new(&env, &tk).transfer(&env.current_contract_address(), &to, &amount);
 
         env.events().publish(
             (Symbol::new(&env, "WithdrawalCompleted"),),
-            (nullifier, to, amount, change_commitment, change_leaf),
+            (nullifier, to, amount, emitted_cm, change_leaf),
         );
         Ok(change_leaf)
     }
@@ -279,6 +300,9 @@ impl UmbraPool {
         // Insert both output commitments (value never leaves the pool).
         let leaf1 = Self::insert_commitment(&env, &out_commitment1);
         let leaf2 = Self::insert_commitment(&env, &out_commitment2);
+
+        // Keep the contract instance live under active use.
+        s.extend_ttl(100_000, 1_000_000);
 
         env.events().publish(
             (Symbol::new(&env, "TransferCompleted"),),
@@ -361,9 +385,21 @@ impl UmbraPool {
 /// Encode a non-negative i128 amount as a 32-byte big-endian Fr scalar (matches the
 /// circuit's `amount` public signal and @umbra/crypto-bls `toBytesBE`).
 fn amount_to_fr_bytes(env: &Env, amount: i128) -> BytesN<32> {
+    // Invariant: callers must guard `amount > 0` (M1) first — a negative i128 would
+    // reinterpret as a huge u128. Assert it locally so a future caller can't reintroduce the bug.
+    debug_assert!(amount >= 0, "amount_to_fr_bytes requires a non-negative amount");
     let mut buf = [0u8; 32];
-    let a = amount as u128; // amounts are non-negative in the slice
+    let a = amount as u128; // amounts are non-negative (guarded by M1 at every call site)
     buf[16..32].copy_from_slice(&a.to_be_bytes());
+    BytesN::from_array(env, &buf)
+}
+
+/// Encode a boolean flag as a 0/1 Fr scalar (a canonical public input for the `has_change` bit).
+fn bool_to_fr_bytes(env: &Env, b: bool) -> BytesN<32> {
+    let mut buf = [0u8; 32];
+    if b {
+        buf[31] = 1;
+    }
     BytesN::from_array(env, &buf)
 }
 

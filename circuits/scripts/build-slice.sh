@@ -43,5 +43,14 @@ for NAME in shield withdraw transfer; do
   ( cd "$ROOT_DIR" && corepack pnpm exec tsx "$CIRCUITS_DIR/scripts/export-soroban.ts" "$NAME" )
 done
 
+# Full-exit withdraw fixture (has_change = 0): the SAME withdraw circuit + proving key, a
+# different witness. Pins the Critical #1 fix (a note can be fully withdrawn even at a full tree).
+echo "==> withdraw_exit: full-exit witness (has_change=0)"
+$SNARKJS wtns calculate "withdraw_js/withdraw.wasm" "withdraw_exit_input.json" "withdraw_exit.wtns"
+$SNARKJS groth16 prove "withdraw_final.zkey" "withdraw_exit.wtns" "withdraw_exit_proof.json" "withdraw_exit_public.json"
+$SNARKJS groth16 verify "withdraw_vkey.json" "withdraw_exit_public.json" "withdraw_exit_proof.json"
+cp withdraw_vkey.json withdraw_exit_vkey.json   # identical verifying key to withdraw
+( cd "$ROOT_DIR" && corepack pnpm exec tsx "$CIRCUITS_DIR/scripts/export-soroban.ts" withdraw_exit )
+
 echo
 echo "Slice fixtures ready under $BUILD: shield_soroban.json, withdraw_soroban.json"

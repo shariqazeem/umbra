@@ -26,6 +26,7 @@
 //   [2] recipient
 //   [3] amount            (public withdrawal, leaves the pool)
 //   [4] changeCommitment  (new private change note)
+//   [5] has_change        (1 = insert change note; 0 = full exit, no insert — works at a full tree)
 pragma circom 2.1.6;
 
 include "./poseidon/poseidon.circom";
@@ -54,6 +55,7 @@ template Withdraw(depth) {
     signal input recipient;
     signal input amount;            // public withdrawal (leaves the pool)
     signal input changeCommitment;  // new private change note
+    signal input has_change;        // 1 = insert change note; 0 = full exit (no insert)
 
     // ---- private: the input note being spent ----
     signal input secret;
@@ -113,6 +115,13 @@ template Withdraw(depth) {
     // (5) conservation: withdrawn amount + private change == the input note's value.
     value === amount + changeValue;
 
+    // (8) full-exit flag. has_change is boolean, and a full exit (has_change == 0) FORCES
+    // changeValue == 0. So when the caller declares "no change", the contract may safely skip
+    // inserting the change note — meaning a note can always be fully withdrawn even when the
+    // Merkle tree is full (no free leaf required), and no value is left unaccounted for.
+    has_change * (has_change - 1) === 0;
+    (1 - has_change) * changeValue === 0;
+
     // (7) recipient binding: force `recipient` into the constraint system so the proof is
     // non-malleably bound to it (a proof for one payee cannot be reused for another — the
     // verifier's public input would differ).
@@ -120,4 +129,4 @@ template Withdraw(depth) {
     recipientSq <== recipient * recipient;
 }
 
-component main {public [root, nullifier, recipient, amount, changeCommitment]} = Withdraw(6);
+component main {public [root, nullifier, recipient, amount, changeCommitment, has_change]} = Withdraw(6);

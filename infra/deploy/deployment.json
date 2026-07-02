@@ -2,21 +2,22 @@
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
   "contractIds": {
-    "pool": "CBD37QCPJD4QPK6G7N4HBOPOERG7QWUBHQMVUILI3TQKHOWBL2PKSGXL",
+    "pool": "CAXK3RA6ELWVW37JJQM3ZTIB7WFSZBFGPVGJN5FKTCJRUGGJYQW5DWYZ",
     "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
   },
-  "wasmHash": "17de8641aa0a115f6f23b3e15e2368498e6a2798bee7815e11e061ffa305121c",
-  "deployTx": "1a7f4a3edcc6e13a3cddbb27bb7077682dd194164a2e1f4c83dc476e3b9cf247",
-  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/1a7f4a3edcc6e13a3cddbb27bb7077682dd194164a2e1f4c83dc476e3b9cf247",
-  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CBD37QCPJD4QPK6G7N4HBOPOERG7QWUBHQMVUILI3TQKHOWBL2PKSGXL",
+  "wasmHash": "84525ea40ab5721ea3812657cafe8cd0a008033b1b356973e70599272819b766",
+  "deployTx": "7aca04214589f4bf655c5d3dd19b5f187149c7ab0caaf30e42d205849deeeb00",
+  "deployTxUrl": "https://stellar.expert/explorer/testnet/tx/7aca04214589f4bf655c5d3dd19b5f187149c7ab0caaf30e42d205849deeeb00",
+  "poolContractUrl": "https://stellar.expert/explorer/testnet/contract/CAXK3RA6ELWVW37JJQM3ZTIB7WFSZBFGPVGJN5FKTCJRUGGJYQW5DWYZ",
   "deployer": "GAHR34WCIIS4TQDGC362ETJSHXNLE6AF6ZDK3EPONNPFRIEXLWNOHYXQ",
   "deployerId": "umbra-deployer",
   "explorerBase": "https://stellar.expert/explorer/testnet",
-  "deployedAt": "2026-07-01T21:27:27Z",
+  "deployedAt": "2026-07-02T15:17:55Z",
   "merkleDepth": 6,
+  "audit": "Fable 5 (contract + circuits + verifier); 2 Criticals found + fixed (non-canonical nullifier double-spend; tree-full stuck-funds). Self-reviewed, not independently audited.",
   "features": [
     "shield",
-    "withdraw / unshield (join-split: arbitrary public amount + private change, C1-bound)",
+    "withdraw / unshield (join-split: arbitrary public amount + private change; full-exit path; C1-bound)",
     "confidential transfer (join-split, hidden amounts + change)"
   ]
 }
