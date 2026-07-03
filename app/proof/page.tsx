@@ -28,8 +28,7 @@ const D = deployment as {
   deployTx: string;
   deployer: string;
   explorerBase: string;
-  shieldTx?: string;
-  transferTx?: string;
+  demoTxs?: { note?: string; shield?: string; transfer?: string; claim?: string };
 };
 
 const EXPLORER = D.explorerBase || "https://stellar.expert/explorer/testnet";
@@ -183,9 +182,9 @@ const RECOVERY = [
 ];
 
 const TESTS: [string, string][] = [
-  ["cargo test -p umbra-pool", "10 / 10 — real Groth16 proofs vs the real BLS12-381 host"],
+  ["cargo test -p umbra-pool", "14 / 14 — real Groth16 proofs vs the real BLS12-381 host"],
   ["@umbra/crypto-bls", "13 / 13 — Poseidon: Rust ≡ circuit ≡ TS"],
-  ["vitest (unit/component)", "25 / 25"],
+  ["vitest (unit/component)", "30 / 30"],
   ["tsc --noEmit", "clean"],
   ["next build", "15 / 15 routes"],
   ["browser → mainnet shield · transfer · unshield", "confirmed on Horizon"],
@@ -208,7 +207,7 @@ export default function ProofPage() {
         <div className="mt-5 flex flex-wrap gap-2">
           <Pill tone="signal">Live on mainnet</Pill>
           <Pill tone="ink">BLS12-381 · Groth16</Pill>
-          <Pill tone="ink">10/10 contract tests</Pill>
+          <Pill tone="ink">14/14 contract tests</Pill>
           <Pill tone="ink">Proven from the browser</Pill>
         </div>
 
@@ -237,7 +236,7 @@ export default function ProofPage() {
           <IdRow label="WASM hash" value={D.wasmHash} />
         </div>
         <p className="mt-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
-          network: {D.network} · {D.networkPassphrase} · Protocol 27. The Groth16 verifier is a Rust library compiled
+          network: {D.network} · {D.networkPassphrase} · Protocol 26. The Groth16 verifier is a Rust library compiled
           into the pool contract, so verification happens inside the same on-chain call.
         </p>
 
@@ -246,7 +245,7 @@ export default function ProofPage() {
           The protocol, in facts
         </h2>
         <div className="grid gap-2.5 sm:grid-cols-3">
-          <Fact label="Network" value="Stellar mainnet · P27" />
+          <Fact label="Network" value="Stellar mainnet · P26" />
           <Fact label="Proof system" value="Groth16" />
           <Fact label="Curve" value="BLS12-381" />
           <Fact label="On-chain verify" value="CAP-0059 host fns" />
@@ -266,10 +265,10 @@ export default function ProofPage() {
           A shield (deposit) and a confidential transfer — on-chain they share no linking data, and the transfer
           reveals no amount at all. Both confirmed on Horizon.
         </p>
-        {D.shieldTx && D.transferTx ? (
+        {D.demoTxs?.shield && D.demoTxs?.transfer ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <TxEvidence kind="Shield · deposit" hash={D.shieldTx} />
-            <TxEvidence kind="Confidential transfer · amount hidden" hash={D.transferTx} />
+            <TxEvidence kind="Shield · deposit" hash={D.demoTxs.shield} />
+            <TxEvidence kind="Confidential transfer · amount hidden" hash={D.demoTxs.transfer} />
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-border bg-white/[0.02] p-5">
@@ -462,7 +461,7 @@ export default function ProofPage() {
               <li>Confidential amounts on shield + withdraw (public today; transfers already hide them)</li>
               <li>Fee-privacy relayer · production indexer</li>
               <li>MPC trusted-setup ceremony · independent audit</li>
-              <li>Mainnet release (security-gated)</li>
+              <li>Rollup for millions of notes (8,192-note pool today)</li>
             </ul>
           </Card>
         </div>
@@ -476,7 +475,7 @@ export default function ProofPage() {
             Open the wallet, shield mainnet funds, and watch the proof verify on-chain — then check the hash here.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <a href="/wallet"><Button>Open the wallet</Button></a>
+            <a href="/wallet"><Button variant="secondary">Open the wallet</Button></a>
             <a href="/mainnet"><Button variant="secondary">Mainnet readiness</Button></a>
           </div>
         </div>

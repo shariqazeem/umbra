@@ -266,7 +266,7 @@ export default function BuildPage() {
             Start from the wallet, or wire the SDK into your own product.
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/wallet"><Button>Open the wallet</Button></Link>
+            <Link href="/wallet"><Button variant="secondary">Open the wallet</Button></Link>
             <Link href="/apps"><Button variant="secondary">See live apps</Button></Link>
             <a href="https://github.com/shariqazeem/umbra" target="_blank" rel="noreferrer noopener" referrerPolicy="no-referrer">
               <Button variant="ghost"><Github className="h-4 w-4" /> GitHub</Button>

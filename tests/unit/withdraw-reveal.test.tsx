@@ -55,7 +55,7 @@ describe("WithdrawReveal — PENDING degrades gracefully", () => {
     await renderWith(PENDING);
 
     // tasteful placeholder, twice (deposit + withdrawal)
-    expect(screen.getAllByText("Awaiting testnet deploy")).toHaveLength(2);
+    expect(screen.getAllByText("Awaiting mainnet deploy")).toHaveLength(2);
 
     // no stellar.expert links anywhere, no tx links → no fabricated hash rendered
     expect(document.querySelectorAll('a[href*="stellar.expert"]')).toHaveLength(0);

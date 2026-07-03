@@ -50,22 +50,20 @@ const config: Config = {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
-        success: {
-          DEFAULT: "hsl(var(--success))",
-          foreground: "hsl(var(--success-foreground))",
-        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
-        // Umbra brand tokens. `signal` is reserved for cryptographic moments ONLY.
-        umbra: {
-          paper: "#FAFAFA",
-          surface: "#FFFFFF",
-          ink: "#111111",
-          muted: "#6B7280",
-          hairline: "#E5E7EB",
-          signal: "#FF3B00",
+        // Ember — the Umbra signal (#FF3B00). Appears ONLY where cryptography happens or is
+        // invoked: proving, success, private balance, the Pool, focus rings, commit CTAs.
+        // Navigation + secondary actions stay monochrome glass. See CLAUDE.md § "Totality".
+        ember: {
+          DEFAULT: "#FF3B00",
+          bright: "#FF5A24",
+          deep: "#FF4810",
         },
+        // Verify — the completion green (#35B67F). ONLY on completed receipts (claim done,
+        // note "Available"). Every other success uses Ember totality.
+        verify: "hsl(var(--verify))",
       },
       borderRadius: {
         sm: "6px",

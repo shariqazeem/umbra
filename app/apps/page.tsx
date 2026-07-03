@@ -79,7 +79,7 @@ export default function AppsPage() {
             These are all built on <code className="font-mono text-[0.95em]">@umbra/sdk</code> — the same
             primitives are yours to ship with.
           </p>
-          <Link href="/build" className="mt-2"><Button>Build with Umbra</Button></Link>
+          <Link href="/build" className="mt-2"><Button variant="secondary">Build with Umbra</Button></Link>
         </div>
       </div>
     </Shell>

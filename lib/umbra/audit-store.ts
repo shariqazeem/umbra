@@ -12,6 +12,7 @@
  */
 
 import { UMBRA_CONFIG } from "./config";
+import { NETWORK_LABEL } from "./network";
 import {
   AUDIT_PACKET_FORMAT,
   AUDIT_PACKET_VERSION,
@@ -26,7 +27,7 @@ import {
 
 const VK_KEY = "umbra.audit.vk.v1";
 const REC_KEY = "umbra.audit.records.v1";
-const NETWORK = "testnet";
+const NETWORK = NETWORK_LABEL;
 
 /** Fields a caller supplies; the store fills id/timestamp/network/poolContractId. */
 export type AuditDraft = Omit<AuditRecord, "id" | "timestamp" | "network" | "poolContractId"> & {

@@ -1,7 +1,8 @@
-// Network configuration + mainnet safety gates. Umbra runs on Stellar TESTNET today.
-// Mainnet is intentionally NOT enabled: it is gated behind security blockers (audit,
-// trusted-setup ceremony, relayer, indexer, multisig) and feature flags that default
-// to OFF. Nothing here should ever let the UI imply production safety for real assets.
+// Network configuration + mainnet safety gates. Umbra is LIVE on Stellar mainnet as an
+// open, capped-per-deposit early-access canary (armed via NEXT_PUBLIC_UMBRA_NETWORK=mainnet
+// + the canary flag + a hard per-deposit cap below). The remaining hardening — MPC ceremony,
+// independent audit, relayer, indexer, multisig — is roadmap. Copy must stay honest: label the
+// canary as early access, never imply a finished production system for real assets.
 
 export type StellarNetwork = "testnet" | "mainnet";
 
@@ -131,7 +132,7 @@ export const READINESS: ReadinessItem[] = [
   { label: "Amount privacy", status: "roadmap", detail: "Private sends already hide amounts (join-split, hidden on-chain) and withdrawals keep private change; shield + the withdrawn amount stay public. Full confidential amounts on every path is roadmap." },
   { label: "Fee-privacy relayer", status: "roadmap", detail: "The fee payer is visible on-chain; a relayer removes that correlation." },
   { label: "Production indexer", status: "roadmap", detail: "Scalable note discovery from the deploy ledger onward." },
-  { label: "Merkle depth", status: "required", detail: "Depth 13 (8,192 notes) today — every entrypoint does at most ONE Merkle insert (a private send defers the recipient's note to a claim), so a spend fits Stellar's per-tx compute budget at this depth (verified on-chain). A production depth (e.g. 20, ~1M notes) needs in-circuit insertion or a rollup." },
+  { label: "Merkle depth", status: "live", detail: "13 levels · 8,192 notes. Every entrypoint does at most ONE Merkle insert (a private send defers the recipient's note to a claim), so a spend fits Stellar's per-tx compute budget at this depth (verified on-chain). A rollup is planned for millions." },
 ];
 
 export const BEFORE_REAL_ASSETS: string[] = [

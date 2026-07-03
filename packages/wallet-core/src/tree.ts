@@ -1,14 +1,14 @@
 import { poseidon2 } from "@umbra/crypto-bls";
 
 /**
- * Append-only Poseidon Merkle tree (depth 20), mirroring the on-chain incremental
- * tree in `contracts/umbra-pool`. Both hash with the SAME Poseidon constants, so a
- * root computed here equals the root the contract computes on insert, and a path
- * produced here verifies in the withdraw circuit. For the slice this keeps the full
- * leaf list in memory and recomputes — correct and simple for demo volumes.
+ * Append-only Poseidon Merkle tree (depth 13, 8,192 notes), mirroring the on-chain
+ * incremental tree in `contracts/umbra-pool`. Both hash with the SAME Poseidon constants,
+ * so a root computed here equals the root the contract computes on insert, and a path
+ * produced here verifies in the withdraw circuit. Keeps the full leaf list in memory and
+ * recomputes — correct and simple at current volumes.
  */
-// Slice depth = 8 (256 leaves), matching the contract + circuit. See the note in
-// @umbra/crypto-bls gen-rust-constants.ts on why the slice uses a shallow tree.
+// Depth 13 (8,192 notes), matching the contract MERKLE_DEPTH + the circuits Withdraw(13)/
+// Transfer(13). A rollup / in-circuit insertion is the path to millions of notes.
 export const DEPTH = 13;
 
 /** Zero-subtree hashes: Z[0]=0, Z[i]=Poseidon(Z[i-1], Z[i-1]). */

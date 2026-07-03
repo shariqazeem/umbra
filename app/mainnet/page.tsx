@@ -114,7 +114,7 @@ export default function MainnetPage() {
             Every claim here is backed by code, contract ids, and real transactions. See the proof, then try the wallet.
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/proof"><Button>Open the Proof Center</Button></Link>
+            <Link href="/proof"><Button variant="secondary">Open the Proof Center</Button></Link>
             <Link href="/wallet"><Button variant="secondary">Open the wallet <ArrowUpRight className="h-4 w-4" /></Button></Link>
           </div>
         </div>

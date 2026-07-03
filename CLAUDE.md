@@ -22,67 +22,101 @@ a consumer product first: privacy is the feature, not the configuration.
 
 ---
 
-## Design system — Swiss Brutalist
+## Design system — Totality
 
-The Umbra UI is **Swiss Brutalist**: structural, typographic, high-contrast, and
-honest about what it is. No ornamentation. The interface should feel like a
-precise financial instrument, not a marketing site.
+Umbra's UI is **Totality**: a dark, cinematic "privacy-infrastructure" system. Obsidian
+surfaces, monochrome glass structure, and a single sacred accent — **Ember** — that ignites
+only where cryptography happens. The interface goes quiet and dark until a proof fires. This
+system is **law**; it supersedes and replaces the earlier light "Swiss Brutalist" spec (its tokens
+and components have been removed). Tokens live in `styles/globals.css` (CSS variables) and
+`tailwind.config.ts` — change the system there, never ad hoc in components.
 
 ### Palette
 
-The entire product uses **three colors only**:
+Dark-only. Four roles: obsidian surfaces, monochrome ink/glass, **Ember** (crypto), **Verify**
+(completed receipts).
 
-| Token          | Hex       | Usage                                                |
-| -------------- | --------- | ---------------------------------------------------- |
-| `umbra.black`  | `#000000` | Text, structural borders, primary surfaces           |
-| `umbra.white`  | `#FFFFFF` | Backgrounds, inverted text                           |
-| `umbra.signal` | `#FF3B00` | **Cryptographic actions ONLY** (shield, prove, send) |
+| Token | Value | Role |
+| --- | --- | --- |
+| `--background` | `#0A0A0A` obsidian | Page |
+| `--card` | `#121212` | Surfaces (`u-card`) |
+| `--foreground` | `#FAFAFA` | Ink / text |
+| `--muted-foreground` | `#999999` | Secondary text |
+| `--border` | `#292929` | Hairline borders (glass structure) |
+| **Ember** (`ember`) | `#FF3B00` · bright `#FF5A24` · deep `#FF4810` | Cryptographic signal — see the Ember rule |
+| **Verify** (`--verify` / `verify`) | `#35B67F` | Completion green — completed receipts ONLY |
+| `--destructive` | `~#E0464A` | Errors |
 
-> **`#FF3B00` is reserved.** It marks moments where a cryptographic operation
-> happens — shielding, proof generation, private transfer. It is never used for
-> decoration, hover states, generic CTAs, links, or emphasis. If an element is
-> not performing a cryptographic action, it does not get the signal color.
+Glass = translucent white on obsidian (`bg-white/[0.04]`, `border-white/10`) — the material for
+structure, secondary buttons, and nav.
 
-No other colors. No tints, no shades beyond what is required for disabled/muted
-text (neutral grays derived from black at low opacity are acceptable for
-secondary text only).
+### The Ember rule (the one rule that matters)
+
+**Ember (`#FF3B00`) appears ONLY where cryptography happens or is invoked.** Nothing else is ever
+Ember; it is earned:
+
+- ✅ Proving (ProofViz, prover steppers), a completed crypto action (SuccessMark), the private
+  **balance** card + glow, the **Pool** ember ring, **focus rings**, and **cryptographic commit
+  CTAs** — buttons that actually prove or move value: *Shield, Send privately, Send, Unshield, Claim,
+  Pay, Generate link, Decrypt, Connect, Generate viewing key.*
+- ❌ **Navigation and secondary CTAs are monochrome glass** — never Ember. "Open the wallet", "Build
+  with Umbra", "See live apps", "Open the Proof Center", "Create a payment link" and every other
+  cross-surface link is the `secondary` glass button.
+
+Hard invariant: **no primary-Ember button may navigate.** The primary (Ember gradient) `Button`
+variant is reserved for the commit actions above; everything else is `secondary`/`ghost`/`link`.
+
+### Verify green
+
+`--verify` (`#35B67F`) is the ONLY non-Ember accent, and it appears ONLY on a **completed receipt**:
+the `/claim` "Added to your wallet" state and a note's "Available" status. Every other success uses
+Ember totality (SuccessMark). Never use Verify for a CTA, an in-progress state, or decoration.
 
 ### Typography
 
-- **Inter** — all UI text (headings, body, labels, buttons).
-- **JetBrains Mono** — all **addresses, hashes, proofs, balances**, and any
-  other raw cryptographic / ledger data.
+- **Inter** (`font-sans`) — all UI text.
+- **JetBrains Mono** (`font-mono`) — **ALL cryptographic / ledger values**: addresses, hashes, proofs,
+  keys, balances, amounts, contract ids, nullifiers, RPC urls, code. Hard rule: crypto/ledger data is
+  always monospaced (slashed zero + tabular figures are set globally on `.font-mono`).
+- **Archivo** (`font-display`, weights 800/900) — heavy display headlines (hero H1s).
 
-Crypto data is always monospaced. This is a hard rule: if a value is an address,
-a transaction hash, a proof, a key, or a balance, it renders in JetBrains Mono.
+### Monospaced crypto data + copy
 
-### Monospaced crypto data + copy actions
+Any monospaced crypto value **must offer a one-click copy** via the shared `components/copy-button.tsx`
+(`CopyButton`) — one component everywhere, never a bespoke toggle. Never show a hash/address the user
+cannot copy.
 
-Any monospaced crypto value (address, hash, proof, balance) **must offer a copy
-action**. Use `hooks/use-copy-to-clipboard.ts` and the `components/copy-button.tsx`
-affordance. Never present a hash or address the user cannot copy in one click.
+### Shape, surface & depth
 
-### Shape & surface rules
+- **Radius `--radius: 12px`.** Cards `rounded-2xl` (16px), buttons/inputs `rounded-xl` (12px), pills
+  `rounded-full`. Nothing is square.
+- **Depth is glow + soft shadow, not borders.** `u-card` = hairline border + `--shadow-sm` + an inset
+  top highlight. The signature crypto depth cue is the **Ember glow** `--shadow-signal`
+  (`0 0 32px -4px rgb(255 59 0 / 0.45)`, `.u-signal-glow`) on the balance card, SuccessMark, the Pool.
+- **Gradients + glass are the language:** the Ember CTA is a vertical gradient; nav is
+  `bg-background/80 backdrop-blur-md`. Structure is hairline borders + glass fills.
 
-- **Corner radius: 0–2px maximum.** Square by default. `--radius` is `2px` and is
-  the ceiling. Never exceed it.
-- **No gradients.** Flat fills only.
-- **No glassmorphism.** No blur, no translucency-as-style.
-- **No soft shadows.** No drop shadows for depth. Depth is communicated with
-  **borders**, not shadows.
-- **No illustrations.** No decorative imagery, mascots, or spot art.
-- **Visible structural borders.** Borders are `2px`, solid, and high-contrast
-  (black on white / white on black). Layout structure is expressed through
-  visible borders and grid lines, not whitespace alone.
+### The corona / ring motif
+
+The signature geometry is the **corona**: rings, orbits, and radial glows around a dark center — the
+Pool disc + spinning ember ring, the SuccessMark ring that draws itself, the Merkle-root pulse in
+ProofViz, the focus ring. New cryptographic affordances should prefer ring/corona geometry over flat
+fills.
+
+### Motion
+
+- Framer-motion springs at roughly **stiffness 260 / damping 28** for signature interactions; fades
+  use `cubic-bezier(0.22,1,0.36,1)`, presses `active:scale-[0.98]`.
+- **`prefers-reduced-motion` is always respected** — every animation (auroras, PoolScene, ProofViz,
+  Lenis smooth-scroll, count-ups) has a reduced-motion path.
 
 ### Component conventions
 
-- Default to `border-2 border-foreground`, square corners, flat fills.
-- Buttons are uppercase, bordered, no shadow. The `signal` button variant is the
-  only one using `#FF3B00` and is reserved for cryptographic actions.
-- Tokens live in `styles/globals.css` (shadcn HSL variables) and
-  `tailwind.config.ts` (brand tokens + radius + fonts). Change the system there,
-  not ad hoc in components.
+- **Button** — `primary` (Ember gradient) = crypto commit only; `secondary` (glass) = navigation +
+  everything else; `ghost`/`link` for tertiary. See the Ember rule.
+- **Card** — `u-card` / `u-card-lg` (dark, rounded-2xl, hairline, soft shadow + inset highlight).
+- **Field / AmountField** — dark inputs, Ember focus ring; `AmountField` denominates in **XLM**.
+- Tokens live in `styles/globals.css` + `tailwind.config.ts`. Change the system there.
 
 ---
 

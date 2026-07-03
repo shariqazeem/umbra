@@ -147,7 +147,7 @@ export function LandingNarrative() {
             style={enter(900)}
           >
             <Link href="/wallet">
-              <Button size="lg">Open the wallet</Button>
+              <Button size="lg" variant="secondary">Open the wallet</Button>
             </Link>
             <Button size="lg" variant="secondary" onClick={scrollTo("problem")}>
               See how it works
@@ -403,7 +403,7 @@ export function LandingNarrative() {
             <h2 className="text-5xl font-bold tracking-tight text-foreground md:text-6xl">Get paid privately.</h2>
             <p className="mt-5 text-xl text-muted-foreground">Create your first payment link in 30 seconds.</p>
             <Link href="/links" className="mt-10 inline-block">
-              <Button size="lg" className="px-10 py-5 text-lg">Create a payment link</Button>
+              <Button size="lg" variant="secondary" className="px-10 py-5 text-lg">Create a payment link</Button>
             </Link>
           </div>
         </Reveal>

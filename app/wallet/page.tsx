@@ -663,7 +663,7 @@ function RecoveryCard({ hasWallet, syncing, onSync }: { hasWallet: boolean; sync
 
 function describe(n: WalletNote) {
   if (n.spent) return { verb: "Sent privately", label: "Spent", tone: "muted" as const, accent: "border-l-muted-foreground/30", Icon: ArrowUpRight, sign: "−" };
-  if (n.leafIndex !== null) return { verb: "Shielded", label: "Available", tone: "ink" as const, accent: "border-l-success/50", Icon: ArrowDownToLine, sign: "+" };
+  if (n.leafIndex !== null) return { verb: "Shielded", label: "Available", tone: "ink" as const, accent: "border-l-verify/50", Icon: ArrowDownToLine, sign: "+" };
   return { verb: "Awaiting funding", label: "Pending", tone: "muted" as const, accent: "border-l-border", Icon: ArrowDownToLine, sign: "" };
 }
 

@@ -72,7 +72,7 @@ export default function ClaimPage({ params }: { params: Promise<{ code: string }
             <p className="py-6 text-sm text-destructive">This claim link is invalid or corrupted.</p>
           ) : added ? (
             <div className="flex flex-col items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-success/15 text-success">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-verify/15 text-verify">
                 <Check className="h-6 w-6" strokeWidth={2.5} />
               </span>
               <h1 className="text-xl font-semibold text-foreground">Added to your wallet</h1>
@@ -81,7 +81,7 @@ export default function ClaimPage({ params }: { params: Promise<{ code: string }
                 your wallet — inserted on-chain and registered to your key, so it recovers on any device.
               </p>
               <Link href="/wallet" className="mt-2">
-                <Button>
+                <Button variant="secondary">
                   Open wallet <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>

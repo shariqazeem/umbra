@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Check, Copy, Shield } from "lucide-react";
+import { Shield } from "lucide-react";
 import { AmountField, Button, Card, Eyebrow, Field, Shell, Textarea } from "@/components/umbra/ui";
 import { CryptoTimeline, SHIELD_STEPS } from "@/components/umbra/crypto-timeline";
 import { SuccessMark } from "@/components/umbra/success-mark";
+import { CopyButton } from "@/components/copy-button";
 import { createPaymentLink, linkUrl, type CreatedLink } from "@/lib/umbra/payment-link";
 import { xlmToStroops } from "@/lib/umbra/units";
 
@@ -17,7 +18,6 @@ export default function LinksPage() {
   const [created, setCreated] = useState<CreatedLink | null>(null);
   const [proving, setProving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   async function onCreate() {
     setError(null);
@@ -78,18 +78,7 @@ export default function LinksPage() {
 
             <div className="mt-6 flex items-center gap-2 rounded-lg bg-white/[0.04] p-2 pl-4 text-left">
               <span className="flex-1 truncate font-mono text-sm text-muted-foreground">{url}</span>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  navigator.clipboard?.writeText(url);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1600);
-                }}
-              >
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copied ? "Copied" : "Copy"}
-              </Button>
+              <CopyButton value={url} className="size-8 shrink-0 rounded-lg border-border bg-transparent text-muted-foreground hover:bg-white/10 hover:text-foreground" />
             </div>
 
             <p className="mx-auto mt-5 max-w-sm text-sm leading-relaxed text-muted-foreground">

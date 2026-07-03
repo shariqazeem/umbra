@@ -89,7 +89,7 @@ export function Textarea({
 
 export function AmountField({
   label,
-  suffix = "USDC",
+  suffix = "XLM",
   className,
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; suffix?: string }) {
