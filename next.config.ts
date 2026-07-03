@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
   // Pin the file-tracing root to this project. Avoids Next inferring a parent
   // directory as the workspace root when stray lockfiles exist higher up the tree.
   outputFileTracingRoot: projectRoot,
+  // Serve the cinematic landing art as AVIF (then WebP) — the optimizer negotiates
+  // per-Accept header, so the eclipse/pool/merkle plates ship a fraction of the PNG weight.
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
   // Transpile the workspace crypto/wallet packages (they ship raw TS).
   transpilePackages: ["@umbra/crypto-bls", "@umbra/wallet-core"],
   webpack: (config, { webpack, isServer }) => {

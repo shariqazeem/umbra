@@ -2,19 +2,27 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowRight, ChevronDown, Github, Lock } from "lucide-react";
-import { Button, Logo } from "@/components/umbra/ui";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { ArrowRight, Github, Lock } from "lucide-react";
+import { Button, Eyebrow, Logo } from "@/components/umbra/ui";
 import { Atmosphere } from "@/components/umbra/atmosphere";
 import { PoolScene } from "@/components/umbra/pool-scene";
+import { CopyButton } from "@/components/copy-button";
+import { UMBRA_CONFIG } from "@/lib/umbra/config";
 import { cn } from "@/lib/utils";
 
 const REPO_URL = "https://github.com/shariqazeem/umbra";
 
-/* ───────────────────────  scroll primitives  ─────────────────────── */
+// Tiny blur-up placeholder for the priority hero plate (a 20px JPEG of the eclipse).
+const HERO_BLUR =
+  "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAFKADAAQAAAABAAAACAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACAAUAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAExMTExMTIBMTIC0gICAtPS0tLS09TT09PT09TV1NTU1NTU1dXV1dXV1dXXBwcHBwcIODg4ODk5OTk5OTk5OTk//bAEMBFxgYJSMlQCMjQJloVWiZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmf/dAAQAAv/aAAwDAQACEQMRAD8A4unMQelMooAKKKKAP//Z";
 
-function useInView(threshold = 0.15) {
-  const ref = React.useRef<HTMLDivElement>(null);
+const POOL_ID = UMBRA_CONFIG.poolContractId;
+
+/* ───────────────────────  scroll primitives (IO-based, fire once)  ─────────────────────── */
+
+function useInView<T extends HTMLElement = HTMLDivElement>(threshold = 0.2) {
+  const ref = React.useRef<T>(null);
   const [inView, setInView] = React.useState(false);
   React.useEffect(() => {
     const el = ref.current;
@@ -34,6 +42,7 @@ function useInView(threshold = 0.15) {
   return { ref, inView };
 }
 
+/** Generic rise + fade reveal — transform + opacity only; instant under reduced motion. */
 function Reveal({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
   const { ref, inView } = useInView();
   return (
@@ -41,8 +50,8 @@ function Reveal({ children, delay = 0, className }: { children: React.ReactNode;
       ref={ref}
       style={delay ? { transitionDelay: `${delay}ms` } : undefined}
       className={cn(
-        "transition-all duration-[1100ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform motion-reduce:transition-none motion-reduce:blur-0",
-        inView ? "translate-y-0 scale-100 opacity-100 blur-0" : "translate-y-10 scale-[0.97] opacity-0 blur-[8px]",
+        "transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform motion-reduce:transition-none",
+        inView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0",
         className,
       )}
     >
@@ -51,9 +60,59 @@ function Reveal({ children, delay = 0, className }: { children: React.ReactNode;
   );
 }
 
+/** Stamp-in — scale 1.04 → 1, opacity 0 → 1. The problem words land like a rubber stamp. */
+function Stamp({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const { ref, inView } = useInView<HTMLSpanElement>(0.35);
+  return (
+    <span
+      ref={ref}
+      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+      className={cn(
+        "inline-block transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform motion-reduce:transition-none",
+        inView ? "scale-100 opacity-100" : "scale-[1.04] opacity-0",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** The one section-header pattern: eyebrow → Archivo statement → one lede. */
+function SectionHead({
+  eyebrow,
+  statement,
+  lede,
+  className,
+}: {
+  eyebrow: string;
+  statement: React.ReactNode;
+  lede?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("mx-auto max-w-3xl text-center", className)}>
+      <Reveal>
+        <Eyebrow className="tracking-[0.28em]">{eyebrow}</Eyebrow>
+      </Reveal>
+      <Reveal delay={90}>
+        <h2 className="mt-5 font-display text-4xl font-extrabold tracking-tight text-foreground md:text-5xl">
+          {statement}
+        </h2>
+      </Reveal>
+      {lede ? (
+        <Reveal delay={170}>
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">{lede}</p>
+        </Reveal>
+      ) : null}
+    </div>
+  );
+}
+
+/** Interior content section — strict 160px cadence (80px top + 80px bottom between neighbours). */
 function Section({ id, children, className }: { id?: string; children: React.ReactNode; className?: string }) {
   return (
-    <section id={id} className={cn("flex min-h-[85vh] scroll-mt-16 flex-col items-center justify-center px-6 py-24", className)}>
+    <section id={id} className={cn("relative scroll-mt-20 px-6 py-20", className)}>
       {children}
     </section>
   );
@@ -65,21 +124,28 @@ export function LandingNarrative() {
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
-  const enter = (delay: number): React.CSSProperties => ({
-    transitionDelay: `${delay}ms`,
-    opacity: mounted ? 1 : 0,
-    transform: mounted ? "translateY(0)" : "translateY(20px)",
-  });
-
   const scrollTo = (id: string) => () => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
-  // Scroll-linked hero: the headline lifts, fades and recedes as you scroll past.
+  // Scroll-linked hero. Under reduced motion we freeze every range to its resting value — and since
+  // that resting value is index 0 of each range, SSR and the first client render stay identical
+  // (no hydration desync), while a reduced-motion reader simply gets a still eclipse.
   const heroRef = React.useRef<HTMLElement>(null);
+  const reduce = useReducedMotion();
+  const R = (a: number, b: number): [number, number] => (reduce ? [a, a] : [a, b]);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
-  const heroY = useTransform(scrollYProgress, [0, 1], [0, -90]);
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.92]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.85], [1, 0]);
-  const glowOpacity = useTransform(scrollYProgress, [0, 1], [1, 0.2]);
+  const typeY = useTransform(scrollYProgress, [0, 1], R(0, -90));
+  const typeScale = useTransform(scrollYProgress, [0, 1], R(1, 0.92));
+  const typeOpacity = useTransform(scrollYProgress, [0, 0.85], R(1, 0));
+  const artScale = useTransform(scrollYProgress, [0, 1], R(1, 1.08)); // the eclipse disc swells
+  const artOpacity = useTransform(scrollYProgress, [0, 1], R(1, 0.7));
+  const coronaOpacity = useTransform(scrollYProgress, [0, 1], R(0.14, 0.72)); // …and the corona brightens
+
+  // Type sequence on load — staggered 80ms rise + fade, instant under reduced motion.
+  const lineCls = cn(
+    "transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform motion-reduce:transition-none",
+    mounted ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
+  );
+  const stagger = (i: number): React.CSSProperties => ({ transitionDelay: `${i * 80}ms` });
 
   return (
     <div className="relative">
@@ -98,149 +164,137 @@ export function LandingNarrative() {
         </div>
       </header>
 
-      {/* ── Section 1 · Hero ── */}
-      <section ref={heroRef} className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 text-center">
-        {/* cinematic hero backdrop — the dawn-glow void (align bottom so the ember sits low) */}
-        <motion.div aria-hidden style={{ opacity: heroOpacity }} className="absolute inset-0 -z-10">
-          <Atmosphere src="/art/hero.png" align="bottom" opacity={0.92} scrim="none" priority />
+      {/* ── 1 · HERO — the eclipse ── */}
+      <section
+        ref={heroRef}
+        className="relative flex min-h-screen flex-col items-center justify-end overflow-hidden px-6 pb-[9vh] pt-24 text-center"
+      >
+        {/* the scene — /art/hero.png; scroll swells the disc */}
+        <motion.div aria-hidden style={{ opacity: artOpacity, scale: artScale }} className="absolute inset-0 -z-10">
+          <Atmosphere src="/art/hero.png" align="center" opacity={1} scrim="none" priority blurDataURL={HERO_BLUR} />
         </motion.div>
-        {/* signal glow */}
+        {/* corona — brightens as the reader scrolls into the pool (light responds to the reader) */}
         <motion.div
           aria-hidden
-          style={{ opacity: glowOpacity }}
-          className="pointer-events-none absolute left-1/2 top-[42%] h-[360px] w-[560px] max-w-[85vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#FF3B00]/10 blur-[140px]"
+          style={{ opacity: coronaOpacity }}
+          className="pointer-events-none absolute left-1/2 top-[30%] h-[420px] w-[600px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#FF3B00]/20 blur-[120px]"
         />
-        <motion.div style={{ y: heroY, scale: heroScale, opacity: heroOpacity }} className="relative max-w-5xl">
+        {/* bottom scrim — keeps the type legible over the ocean without dimming the eclipse */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-background via-background/70 to-transparent" aria-hidden />
+
+        <motion.div style={{ y: typeY, scale: typeScale, opacity: typeOpacity }} className="relative max-w-5xl">
           <span
-            className="mb-7 inline-block font-mono text-[11px] uppercase tracking-[0.32em] text-[#FF3B00] transition-all duration-700 ease-out"
-            style={enter(0)}
+            style={stagger(0)}
+            className={cn(lineCls, "mb-7 inline-block font-mono text-[11px] uppercase tracking-[0.32em] text-[#FF3B00]")}
           >
             The privacy layer for Stellar
           </span>
-          {["Private money", "on Stellar."].map((line, i) => (
+          {["Private money", "on Stellar."].map((l, i) => (
             <h1
-              key={line}
-              className="font-display text-6xl font-extrabold uppercase leading-[0.9] tracking-tight text-foreground transition-all duration-700 ease-out md:text-8xl"
-              style={enter(150 + i * 200)}
+              key={l}
+              style={stagger(1 + i)}
+              className={cn(
+                lineCls,
+                "font-display text-6xl font-black uppercase leading-[0.9] tracking-tight text-foreground md:text-8xl",
+              )}
             >
-              {line}
+              {l}
             </h1>
           ))}
           <p
-            className="mx-auto mt-6 max-w-2xl text-xl font-semibold tracking-tight text-foreground transition-all duration-700 ease-out sm:text-2xl"
-            style={enter(650)}
+            style={stagger(3)}
+            className={cn(lineCls, "mx-auto mt-7 max-w-xl text-lg leading-relaxed text-muted-foreground md:text-xl")}
           >
-            Shield. Pay. Disclose only when you choose.
-          </p>
-          <p
-            className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-muted-foreground transition-all duration-700 ease-out md:text-lg"
-            style={enter(800)}
-          >
-            Hold a private balance, send with the amount hidden on-chain, and cash out unlinkably —
-            every move enforced by a zero-knowledge proof a Stellar smart contract verifies on-chain.
+            The part of the ledger light can&rsquo;t reach.
           </p>
           <div
-            className="mt-10 flex flex-col items-center justify-center gap-3 transition-all duration-700 ease-out sm:flex-row"
-            style={enter(900)}
+            style={stagger(4)}
+            className={cn(lineCls, "mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row")}
           >
             <Link href="/wallet">
-              <Button size="lg" variant="secondary">Open the wallet</Button>
+              <Button size="lg" variant="primary">Open the wallet</Button>
             </Link>
-            <Button size="lg" variant="secondary" onClick={scrollTo("problem")}>
+            <Button size="lg" variant="ghost" onClick={scrollTo("how")}>
               See how it works
             </Button>
           </div>
         </motion.div>
-        <div className="absolute bottom-10 transition-opacity duration-700" style={{ opacity: mounted ? 1 : 0, transitionDelay: "1200ms" }}>
-          <ChevronDown className="u-animate-pulse h-6 w-6 text-muted-foreground/50" />
-        </div>
       </section>
 
-      {/* ── Signature scroll scene · Enter the pool ── */}
-      <PoolScene />
+      {/* ── 2 · POOL — the absorption scene ── */}
+      <div id="how">
+        <PoolScene />
+      </div>
 
-      {/* ── Section 2 · The Problem ── */}
-      <Section id="problem">
-        <div className="max-w-3xl text-center">
+      {/* ── 3 · PROBLEM — colorless surveillance (no Ember) ── */}
+      <Section id="problem" className="py-28">
+        <div className="mx-auto max-w-3xl text-center">
           <Reveal>
-            <h2 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">
+            <Eyebrow className="tracking-[0.28em]">The status quo</Eyebrow>
+          </Reveal>
+          <Reveal delay={90}>
+            <h2 className="mt-5 font-display text-4xl font-extrabold tracking-tight text-foreground md:text-5xl">
               Every payment you receive is public.
             </h2>
           </Reveal>
-          <div className="mt-12 space-y-4">
+          <div className="mt-16 space-y-6">
             {[
               ["Your freelance invoice.", "Visible."],
               ["Your donation.", "Traced."],
               ["Your salary.", "Searchable."],
-            ].map(([a, b], i) => (
-              <Reveal key={b} delay={i * 180}>
-                <p className="text-xl text-muted-foreground">
-                  {a} <span className="font-medium text-foreground">{b}</span>
-                </p>
-              </Reveal>
+            ].map(([lead, word], i) => (
+              <p key={word} className="text-lg text-muted-foreground md:text-xl">
+                {lead}{" "}
+                <Stamp
+                  delay={i * 90}
+                  className="font-display text-3xl font-extrabold tracking-tight text-foreground md:text-4xl"
+                >
+                  {word}
+                </Stamp>
+              </p>
             ))}
           </div>
-          <Reveal delay={200}>
-            <p className="mx-auto mt-14 max-w-xl text-lg leading-relaxed text-[#9CA3AF]">
+          <Reveal delay={150}>
+            <p className="mx-auto mt-16 max-w-xl text-lg leading-relaxed text-muted-foreground">
               Blockchains are transparent by design. That transparency comes at a cost: your financial privacy.
             </p>
           </Reveal>
         </div>
       </Section>
 
-      {/* ── Section 3 · The Solution ── */}
+      {/* ── 4 · SOLUTION — the ember hairline draws as the fix ignites ── */}
       <Section>
-        <div className="w-full max-w-4xl text-center">
-          <Reveal>
-            <h2 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-              Umbra makes payments private on Stellar.
-            </h2>
-          </Reveal>
-          <div className="mt-14 flex flex-col items-stretch gap-4 md:flex-row md:items-center">
-            {[
-              { word: "Shield", desc: "Move funds into the pool — a deposit no one can link to you later." },
-              { word: "Send", desc: "Transfer a shielded note privately — the amount hidden on-chain — or cash out, unlinkable from where the money came." },
-              { word: "Disclose", desc: "Export an encrypted audit packet. Private by default, accountable by choice." },
-            ].map((c, i) => (
-              <React.Fragment key={c.word}>
-                <Reveal delay={i * 150} className="flex-1">
-                  <div className="u-card h-full p-8 text-left">
-                    <h3 className="text-2xl font-semibold text-foreground">{c.word}</h3>
-                    <p className="mt-2 text-base leading-relaxed text-muted-foreground">{c.desc}</p>
-                  </div>
-                </Reveal>
-                {i < 2 && (
-                  <div className="hidden shrink-0 items-center md:flex">
-                    <span className="h-px w-6 bg-border" />
-                  </div>
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-          <Reveal delay={200}>
-            <p className="mt-12 text-base italic text-[#9CA3AF]">
-              Non-custodial. No trusted relayers. Our own zero-knowledge circuits — verified by a Stellar smart contract.
-            </p>
-          </Reveal>
+        <SectionHead
+          eyebrow="The fix"
+          statement="Umbra makes payments private on Stellar."
+        />
+        <div className="mx-auto mt-16 flex max-w-4xl flex-col items-stretch gap-4 md:flex-row">
+          {[
+            { word: "Shield", desc: "Move funds into the pool — a deposit no one can link to you later." },
+            { word: "Send", desc: "Transfer a shielded note privately — the amount hidden on-chain — or cash out, unlinkable from where the money came." },
+            { word: "Disclose", desc: "Export an encrypted audit packet. Private by default, accountable by choice." },
+          ].map((c, i) => (
+            <HairlineCard key={c.word} delay={i * 150} word={c.word} desc={c.desc} />
+          ))}
         </div>
+        <Reveal delay={200}>
+          <p className="mt-12 text-center text-base italic text-muted-foreground">
+            Non-custodial. No trusted relayers. Our own zero-knowledge circuits — verified by a Stellar smart contract.
+          </p>
+        </Reveal>
       </Section>
 
-      {/* ── Real-world money ── */}
-      <Section className="relative isolate overflow-hidden">
-        <Atmosphere src="/art/surface.png" align="bottom" opacity={0.4} scrim="vertical" />
-        <div className="w-full max-w-4xl">
-          <Reveal>
-            <h2 className="text-center text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-              Built for real money.
-            </h2>
-          </Reveal>
-          <Reveal delay={120}>
-            <p className="mx-auto mt-5 max-w-2xl text-center text-lg leading-relaxed text-muted-foreground">
-              Stablecoins and cross-border payments — what people actually use Stellar for — without
-              putting your whole financial life on a public ledger.
-            </p>
-          </Reveal>
-          <div className="mt-14 grid gap-4 md:grid-cols-3">
+      {/* ── 5 · REAL MONEY — /art/surface.png full-bleed, darkened ── */}
+      <section className="relative isolate flex min-h-screen flex-col justify-center overflow-hidden px-6 py-28">
+        <Atmosphere src="/art/surface.png" align="bottom" opacity={0.3} scrim="vertical" />
+        <div className="absolute inset-0 -z-10 bg-background/40" aria-hidden />
+        <div className="mx-auto w-full max-w-4xl">
+          <SectionHead
+            eyebrow="Built for real money"
+            statement="Stablecoins. Payroll. Cross-border."
+            lede="What people actually use Stellar for — without putting your whole financial life on a public ledger."
+          />
+          <div className="mt-16 grid gap-4 md:grid-cols-3">
             {[
               { who: "A freelancer", line: "invoices a client abroad and gets paid in USDC — without exposing their rate, their volume, or every other client." },
               { who: "A donor", line: "funds a cause without broadcasting their wallet history to anyone who cares to look." },
@@ -256,19 +310,17 @@ export function LandingNarrative() {
             ))}
           </div>
         </div>
-      </Section>
+      </section>
 
-      {/* ── Section 4 · The Reveal ── */}
-      <Section className="relative isolate overflow-hidden bg-white/[0.02]">
-        <Atmosphere src="/art/merkle.png" align="bottom" opacity={0.55} scrim="vertical" />
-        <div className="w-full max-w-3xl text-center">
-          <Reveal>
-            <h2 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">What the chain sees.</h2>
-          </Reveal>
+      {/* ── 6 · REVEAL — what the chain sees; /art/merkle.png at 20% ── */}
+      <section className="relative isolate flex min-h-screen flex-col justify-center overflow-hidden px-6 py-28">
+        <Atmosphere src="/art/merkle.png" align="center" opacity={0.2} scrim="radial" />
+        <div className="mx-auto w-full max-w-3xl text-center">
+          <SectionHead eyebrow="What the chain sees" statement="Verifiable, yet unlinkable." />
           <Reveal delay={150}>
-            <div className="u-card-lg mt-14 grid grid-cols-1 gap-y-10 p-8 text-left sm:grid-cols-2 sm:gap-x-10 sm:gap-y-0">
+            <div className="u-card-lg mt-16 grid grid-cols-1 gap-y-10 p-8 text-left sm:grid-cols-2 sm:gap-x-10 sm:gap-y-0">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9CA3AF]">What happened</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">What happened</p>
                 <div className="mt-5 space-y-3 text-base leading-loose text-foreground">
                   <p>Alice creates a payment link.</p>
                   <p>Bob pays 100 USDC.</p>
@@ -276,13 +328,15 @@ export function LandingNarrative() {
                 </div>
               </div>
               <div className="border-t border-border pt-8 sm:border-l sm:border-t-0 sm:pl-10 sm:pt-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9CA3AF]">What Stellar sees</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">What Stellar sees</p>
                 <div className="mt-5">
                   <p className="text-base text-foreground">
                     Deposit: <span className="font-mono">100 USDC</span> → Pool
                   </p>
                   <div className="relative my-12 flex items-center justify-center">
                     <span className="absolute inset-x-0 top-1/2 border-t border-dashed border-border" />
+                    {/* the seal, with a slow corona pulse behind it */}
+                    <span aria-hidden className="u-animate-corona absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#FF3B00]/25 blur-md" />
                     <span className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card">
                       <Lock className="h-4 w-4 text-foreground" strokeWidth={2} />
                     </span>
@@ -303,76 +357,66 @@ export function LandingNarrative() {
             </p>
           </Reveal>
         </div>
-      </Section>
+      </section>
 
-      {/* ── Section 5 · How it works ── */}
+      {/* ── 7 · HOW IT WORKS — 160px cadence, one header pattern ── */}
       <Section>
-        <div className="w-full max-w-3xl">
-          <Reveal>
-            <h2 className="text-center text-4xl font-bold tracking-tight text-foreground">Built on real cryptography.</h2>
-          </Reveal>
-          <div className="mt-14 space-y-8">
-            {[
-              ["Zero-knowledge proofs", "Every transaction includes a Groth16 proof: mathematical evidence that the rules were followed, with nothing else revealed."],
-              ["On-chain verification", "The Stellar smart contract verifies each proof before releasing funds. No trusted servers. No relayers."],
-              ["Confidential transfers", "Send a shielded note with the amount hidden on-chain — our own zero-knowledge circuit, not a third-party token. The chain sees a nullifier and a commitment, never a number."],
-              ["Poseidon commitments", "Your funds become sealed commitments — cryptographic locks that only you can open."],
-              ["Nullifier protection", "One-time nullifiers prevent double-spending. The math enforces it, not a company."],
-            ].map(([title, desc], i) => (
-              <Reveal key={title} delay={i * 100}>
-                <div className="flex gap-5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.04] font-mono text-sm text-muted-foreground">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-                    <p className="mt-1 text-base leading-relaxed text-muted-foreground">{desc}</p>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-          <Reveal delay={200}>
-            <p className="mt-14 text-center font-mono text-sm text-[#9CA3AF]">
-              Circom circuits. BLS12-381. Soroban smart contracts. Verified on Stellar.
-            </p>
-          </Reveal>
-        </div>
-      </Section>
-
-      {/* ── Section 6 · Use cases ── */}
-      <Section className="bg-white/[0.02]">
-        <div className="w-full max-w-4xl">
-          <Reveal>
-            <h2 className="text-center text-4xl font-bold tracking-tight text-foreground">Private finance for Stellar.</h2>
-          </Reveal>
-          <div className="mt-14 grid gap-4 sm:grid-cols-2">
-            {[
-              ["Freelance payments", "Send an invoice link. Get paid without exposing your income on-chain."],
-              ["Donations", "Accept contributions privately. Donors stay anonymous. Amounts stay hidden."],
-              ["Payroll", "Pay your team without publishing every salary to the world."],
-              ["Commerce", "Accept payments at checkout. Customers don't become public records."],
-              ["Treasury", "Move organizational funds without broadcasting your strategy."],
-              ["Creator payments", "Fans support creators privately. No public ledger of who paid what."],
-            ].map(([title, desc], i) => (
-              <Reveal key={title} delay={(i % 2) * 90}>
-                <div className="u-card h-full p-6">
+        <SectionHead eyebrow="Under the hood" statement="Built on real cryptography." />
+        <div className="mx-auto mt-16 max-w-3xl space-y-8">
+          {[
+            ["Zero-knowledge proofs", "Every transaction includes a Groth16 proof: mathematical evidence that the rules were followed, with nothing else revealed."],
+            ["On-chain verification", "The Stellar smart contract verifies each proof before releasing funds. No trusted servers. No relayers."],
+            ["Confidential transfers", "Send a shielded note with the amount hidden on-chain — our own zero-knowledge circuit, not a third-party token. The chain sees a nullifier and a commitment, never a number."],
+            ["Poseidon commitments", "Your funds become sealed commitments — cryptographic locks that only you can open."],
+            ["Nullifier protection", "One-time nullifiers prevent double-spending. The math enforces it, not a company."],
+          ].map(([title, desc], i) => (
+            <Reveal key={title} delay={i * 90}>
+              <div className="flex gap-5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.04] font-mono text-sm text-muted-foreground">
+                  {i + 1}
+                </span>
+                <div>
                   <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{desc}</p>
+                  <p className="mt-1 text-base leading-relaxed text-muted-foreground">{desc}</p>
                 </div>
-              </Reveal>
-            ))}
-          </div>
-          <Reveal delay={200}>
-            <p className="mt-12 text-center text-base text-muted-foreground">
-              Any application on Stellar can integrate Umbra.
-            </p>
-          </Reveal>
+              </div>
+            </Reveal>
+          ))}
         </div>
+        <Reveal delay={200}>
+          <p className="mx-auto mt-16 max-w-3xl text-center font-mono text-sm text-muted-foreground">
+            Circom circuits. BLS12-381. Soroban smart contracts. Verified on Stellar.
+          </p>
+        </Reveal>
       </Section>
 
-      {/* ── Section 7 · Trust ── */}
-      <Section className="min-h-[50vh]">
+      {/* ── 7 · USE CASES ── */}
+      <Section>
+        <SectionHead eyebrow="Where it fits" statement="Private finance for Stellar." />
+        <div className="mx-auto mt-16 grid max-w-4xl gap-4 sm:grid-cols-2">
+          {[
+            ["Freelance payments", "Send an invoice link. Get paid without exposing your income on-chain."],
+            ["Donations", "Accept contributions privately. Donors stay anonymous. Amounts stay hidden."],
+            ["Payroll", "Pay your team without publishing every salary to the world."],
+            ["Commerce", "Accept payments at checkout. Customers don't become public records."],
+            ["Treasury", "Move organizational funds without broadcasting your strategy."],
+            ["Creator payments", "Fans support creators privately. No public ledger of who paid what."],
+          ].map(([title, desc], i) => (
+            <Reveal key={title} delay={(i % 2) * 90}>
+              <div className="u-card h-full p-6">
+                <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{desc}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+        <Reveal delay={200}>
+          <p className="mt-12 text-center text-base text-muted-foreground">Any application on Stellar can integrate Umbra.</p>
+        </Reveal>
+      </Section>
+
+      {/* ── 7 · TRUST ── */}
+      <Section>
         <Reveal>
           <div className="flex flex-col items-center gap-8">
             <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-sm font-medium text-muted-foreground">
@@ -392,24 +436,63 @@ export function LandingNarrative() {
         </Reveal>
       </Section>
 
-      {/* ── Section 8 · Close ── */}
-      <Section className="relative isolate min-h-screen overflow-hidden">
-        <Atmosphere src="/art/og.png" align="center" opacity={0.5} scrim="radial" />
+      {/* ── 8 · CLOSE — /art/og.png eclipse; end on a verifiable fact ── */}
+      <section className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-28 text-center">
+        <Atmosphere src="/art/og.png" align="center" opacity={0.55} scrim="radial" />
         <Reveal>
-          <div className="text-center">
-            <h2 className="text-5xl font-bold tracking-tight text-foreground md:text-6xl">Get paid privately.</h2>
-            <p className="mt-5 text-xl text-muted-foreground">Create your first payment link in 30 seconds.</p>
-            <Link href="/links" className="mt-10 inline-block">
-              <Button size="lg" variant="secondary" className="px-10 py-5 text-lg">Create a payment link</Button>
-            </Link>
-          </div>
+          <h2 className="font-display text-5xl font-black tracking-tight text-foreground md:text-7xl">
+            Get paid privately.
+          </h2>
         </Reveal>
-      </Section>
+        <Reveal delay={120}>
+          <p className="mt-6 text-xl text-muted-foreground">Create your first payment link in 30 seconds.</p>
+        </Reveal>
+        <Reveal delay={220}>
+          <Link href="/links" className="mt-10 inline-block">
+            <Button size="lg" variant="secondary" className="px-10 py-5 text-lg">Create a payment link</Button>
+          </Link>
+        </Reveal>
+        {POOL_ID ? (
+          <Reveal delay={320}>
+            <div className="mt-14 flex flex-col items-center gap-2">
+              <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted-foreground/70">
+                Live pool · Stellar mainnet
+              </span>
+              <div className="flex items-center gap-2">
+                <code className="max-w-[80vw] truncate font-mono text-xs text-muted-foreground sm:text-sm">{POOL_ID}</code>
+                <CopyButton value={POOL_ID} label="Copy pool contract ID" />
+              </div>
+            </div>
+          </Reveal>
+        ) : null}
+      </section>
 
       {/* Footer */}
       <footer className="border-t border-border px-6 py-10 text-center">
-        <p className="text-xs text-[#9CA3AF]">Built for Stellar Hacks 2026 · Powered by zero-knowledge proofs</p>
+        <p className="text-xs text-muted-foreground">Built for Stellar Hacks 2026 · Powered by zero-knowledge proofs</p>
       </footer>
+    </div>
+  );
+}
+
+/* ── solution card with an ember hairline that draws along the top edge on enter ── */
+function HairlineCard({ word, desc, delay }: { word: string; desc: string; delay: number }) {
+  const { ref, inView } = useInView(0.3);
+  return (
+    <div ref={ref} className="relative flex-1 overflow-hidden rounded-2xl">
+      {/* the ember hairline — scales from the left as the fix ignites */}
+      <span
+        aria-hidden
+        style={{ transitionDelay: `${delay}ms` }}
+        className={cn(
+          "absolute inset-x-0 top-0 z-10 h-px origin-left bg-[#FF3B00] shadow-[0_0_8px_0_rgba(255,59,0,0.7)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none",
+          inView ? "scale-x-100" : "scale-x-0",
+        )}
+      />
+      <div className="u-card h-full p-8 text-left">
+        <h3 className="text-2xl font-semibold text-foreground">{word}</h3>
+        <p className="mt-2 text-base leading-relaxed text-muted-foreground">{desc}</p>
+      </div>
     </div>
   );
 }

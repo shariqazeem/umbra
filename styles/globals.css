@@ -228,6 +228,36 @@
   @media (prefers-reduced-motion: reduce) { .u-pool-spin { animation: none; } }
 }
 
+/* Landing — the slow corona pulse behind the "cannot be connected" seal (Reveal §6).
+ * Opacity + transform only (compositor-friendly). Reduced motion: a static ring. */
+@layer utilities {
+  @keyframes u-corona-pulse {
+    0%, 100% { opacity: 0.18; transform: scale(0.9); }
+    50% { opacity: 0.5; transform: scale(1.14); }
+  }
+  .u-animate-corona { animation: u-corona-pulse 3.4s ease-in-out infinite; will-change: transform, opacity; }
+  @media (prefers-reduced-motion: reduce) {
+    .u-animate-corona { animation: none; opacity: 0.3; transform: none; }
+  }
+}
+
+/* Wallet — the balance-card eclipse corona. Slow spin = syncing (u-pool-spin, 16s);
+ * u-corona-fast = proving (accelerated); u-animate-flare = the one success totality flash. */
+@layer utilities {
+  @keyframes u-corona-fast { to { transform: rotate(360deg); } }
+  .u-corona-fast { animation: u-corona-fast 2.4s linear infinite; will-change: transform; }
+  @keyframes u-totality-flare {
+    0% { opacity: 0; transform: scale(0.96); }
+    28% { opacity: 1; transform: scale(1.16); }
+    100% { opacity: 0; transform: scale(1.34); }
+  }
+  .u-animate-flare { animation: u-totality-flare 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @media (prefers-reduced-motion: reduce) {
+    .u-corona-fast { animation: none; }
+    .u-animate-flare { animation: none; opacity: 0; }
+  }
+}
+
 /* App feel — applied to <html> on app routes (not the landing). Native scroll with hidden
  * scrollbars (still scrollable + keyboard-focusable), and a default cursor everywhere except
  * real hyperlinks/inputs — the difference between a document and an app. */

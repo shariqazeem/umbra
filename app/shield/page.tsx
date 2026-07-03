@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { SuccessMark } from "@/components/umbra/success-mark";
 import { AmountField, Button, Card, Eyebrow, Shell } from "@/components/umbra/ui";
-import { ProverProgress } from "@/components/umbra/prover-progress";
+import { ProofViz } from "@/components/umbra/proof-viz";
+import { TxProgress, type TxStep } from "@/components/umbra/tx-progress";
 import { WalletConnect } from "@/components/umbra/wallet-connect";
 import { useProver } from "@/hooks/use-prover";
 import { useWallet } from "@/hooks/use-wallet";
@@ -16,12 +17,14 @@ type Phase = "form" | "working" | "done" | "error";
 export default function ShieldPage() {
   const [amount, setAmount] = useState("100");
   const [phase, setPhase] = useState<Phase>("form");
+  const [txStep, setTxStep] = useState<TxStep>("proving");
   const [msg, setMsg] = useState<string | null>(null);
   const prover = useProver();
   const wallet = useWallet();
 
   async function onShield() {
     setPhase("working");
+    setTxStep("proving");
     setMsg(null);
     try {
       const value = BigInt(amount);
@@ -31,7 +34,7 @@ export default function ShieldPage() {
       const proof = await prover.run("shield", input as unknown as Record<string, unknown>);
       if (isChainConfigured()) {
         if (!wallet.signer) throw new Error("Connect your wallet to shield on-chain");
-        const { hash, leafIndex } = await submitShield({ proof, commitment, amount: value }, wallet.signer);
+        const { hash, leafIndex } = await submitShield({ proof, commitment, amount: value }, wallet.signer, (p) => setTxStep(p));
         walletStore.observe(commitment, leafIndex);
         setMsg(`tx ${hash}`);
       } else {
@@ -48,7 +51,7 @@ export default function ShieldPage() {
     <Shell active="/wallet">
       <div className="mx-auto max-w-prose">
         <Eyebrow>Advanced</Eyebrow>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">Add funds privately</h1>
+        <h1 className="mt-3 font-display text-3xl font-extrabold uppercase tracking-tight text-foreground">Add funds privately</h1>
         <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
           Move funds into the privacy pool directly. Most people just share a payment link instead.
         </p>
@@ -62,16 +65,13 @@ export default function ShieldPage() {
               {msg && <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{msg}</p>}
             </div>
           ) : phase === "working" ? (
-            <ProverProgress
-              stage={prover.stage}
-              elapsedMs={prover.elapsedMs}
-              loadedBytes={prover.loadedBytes}
-              totalBytes={prover.totalBytes}
-              error={prover.error}
-            />
+            <div className="flex flex-col gap-6 py-2">
+              <ProofViz stage={prover.stage} large />
+              <TxProgress step={txStep} prover={prover} chain={isChainConfigured()} />
+            </div>
           ) : (
             <div className="flex flex-col gap-5">
-              <AmountField label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <AmountField hero label="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
               {isChainConfigured() && <WalletConnect wallet={wallet} />}
               <Button size="block" onClick={onShield}>Shield funds</Button>
               {phase === "error" && <p className="text-sm text-destructive">{msg}</p>}
@@ -79,7 +79,7 @@ export default function ShieldPage() {
           )}
         </Card>
 
-        <p className="mt-4 text-center text-sm leading-relaxed text-[#9CA3AF]">
+        <p className="mt-4 text-center text-sm leading-relaxed text-muted-foreground">
           Shielding seals your funds under a commitment only you can open. A zero-knowledge proof secures it.
         </p>
       </div>

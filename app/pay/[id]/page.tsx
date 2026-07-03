@@ -55,16 +55,19 @@ export default function PayPage() {
     }
   }
 
+  const amount = payload ? stroopsToXlm(BigInt(payload.amount)) : "";
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="mx-auto flex h-16 w-full max-w-prose items-center px-6">
         <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold"><Logo /> Umbra</Link>
       </header>
 
-      <main className="animate-fade-up mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 pb-24">
+      <main className="animate-fade-up mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 pb-24">
         {error ? (
-          <Card elevated className="p-8 text-center">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.08] text-destructive">
+          /* Tamper branch — a calm red-hairline card. Serious, not alarming. */
+          <div className="rounded-3xl border border-destructive/30 bg-destructive/[0.03] p-8 text-center">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-destructive/30 text-destructive">
               <ShieldAlert className="h-6 w-6" strokeWidth={1.75} />
             </span>
             <h1 className="mt-5 text-xl font-semibold tracking-tight text-foreground">This link can&rsquo;t be trusted</h1>
@@ -72,22 +75,23 @@ export default function PayPage() {
               The payment data has been modified and no longer matches its cryptographic proof.
             </p>
             <p className="mt-6 text-sm font-medium text-muted-foreground">This link is invalid</p>
-          </Card>
+          </div>
         ) : payload ? (
           <>
-            <p className="mb-4 text-center"><Eyebrow>Private payment request</Eyebrow></p>
-            <Card elevated className="overflow-hidden">
-              <div className="border-b border-border px-8 pb-8 pt-7 text-center">
+            <p className="mb-5 text-center"><Eyebrow>Private payment request</Eyebrow></p>
+            <Card elevated className="overflow-hidden rounded-3xl">
+              {/* Payee + title + the amount, monumental */}
+              <div className="border-b border-border px-8 pb-8 pt-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">{payload.title}</span> · to {payload.recipientName}
                 </p>
-                <p className="mt-4 font-mono text-4xl font-semibold tracking-tight text-foreground">
-                  {stroopsToXlm(BigInt(payload.amount))} <span className="text-2xl text-muted-foreground">XLM</span>
+                <p className="mt-5 font-mono text-display font-semibold leading-none tracking-tight text-foreground">
+                  {amount} <span className="text-2xl text-muted-foreground">XLM</span>
                 </p>
-                {payload.description && <p className="mt-3 text-sm text-muted-foreground">{payload.description}</p>}
+                {payload.description && <p className="mt-4 text-sm text-muted-foreground">{payload.description}</p>}
               </div>
 
-              <div className="px-8 py-6">
+              <div className="px-8 py-7">
                 {phase === "paid" ? (
                   <Paid recipient={payload.recipientName} msg={msg} />
                 ) : phase === "funding" ? (
@@ -95,9 +99,9 @@ export default function PayPage() {
                 ) : (
                   <div className="flex flex-col gap-3">
                     {isChainConfigured() && <WalletConnect wallet={wallet} />}
-                    <Button size="block" onClick={onPay}>Pay {stroopsToXlm(BigInt(payload.amount))} XLM</Button>
+                    <Button size="block" onClick={onPay}>Pay {amount} XLM</Button>
                     {phase === "error" && <p className="text-sm text-destructive">{msg}</p>}
-                    <p className="text-center text-xs text-[#9CA3AF]">
+                    <p className="text-center text-xs text-muted-foreground">
                       This payment is secured by a zero-knowledge proof verified on Stellar.
                     </p>
                   </div>
@@ -105,7 +109,7 @@ export default function PayPage() {
               </div>
 
               <div className="border-t border-border py-3 text-center">
-                <span className="text-xs text-[#9CA3AF]">Powered by Stellar</span>
+                <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">Powered by Stellar</span>
               </div>
             </Card>
           </>

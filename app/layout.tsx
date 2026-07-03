@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Archivo, Inter, JetBrains_Mono } from "next/font/google";
 
@@ -45,6 +45,10 @@ export const metadata: Metadata = {
       "Private payments on Stellar with the amount hidden on-chain. Our own ZK, verified on-chain.",
     images: ["/art/og.png"],
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#080809",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

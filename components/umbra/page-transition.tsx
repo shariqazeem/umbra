@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useRef, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { LayoutRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
@@ -29,8 +29,14 @@ const SPRING = { type: "spring", stiffness: 260, damping: 28, mass: 0.9 } as con
 export function PageTransition({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const reduce = useReducedMotion();
+  // `useReducedMotion` reads the user's OS setting, which the server can't know (it renders as
+  // `false`). Branching the tree on it directly desyncs server vs. client HTML and throws a
+  // hydration mismatch for every reduced-motion visitor. Gate the instant-swap branch behind a
+  // mount flag so SSR and the first client render always agree, then switch after hydration.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  if (reduce) return <div key={pathname}>{children}</div>;
+  if (reduce && mounted) return <div key={pathname} className="relative min-h-screen">{children}</div>;
 
   return (
     <AnimatePresence mode="popLayout" initial={false}>

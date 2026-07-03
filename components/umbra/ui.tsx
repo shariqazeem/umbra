@@ -93,15 +93,25 @@ export function Textarea({
 export function AmountField({
   label,
   suffix = "XLM",
+  hero = false,
   className,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { label: string; suffix?: string }) {
+}: React.InputHTMLAttributes<HTMLInputElement> & { label: string; suffix?: string; hero?: boolean }) {
   return (
     <label className="flex flex-col gap-2">
       <span className="text-sm font-medium text-foreground">{label}</span>
       <div className="relative">
-        <input className={cn(inputBase, "pr-16 font-mono", className)} inputMode="decimal" {...props} />
-        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">
+        <input
+          className={cn(inputBase, "font-mono", hero ? "py-4 pr-24 text-4xl tracking-tight" : "pr-16", className)}
+          inputMode="decimal"
+          {...props}
+        />
+        <span
+          className={cn(
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 font-mono text-muted-foreground",
+            hero ? "right-5 text-xl" : "right-4 text-sm",
+          )}
+        >
           {suffix}
         </span>
       </div>

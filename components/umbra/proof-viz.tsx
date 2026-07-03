@@ -76,7 +76,7 @@ const CAPTION: Record<ProverStage, string> = {
   error: "proof failed",
 };
 
-export function ProofViz({ stage }: { stage: ProverStage }) {
+export function ProofViz({ stage, large = false }: { stage: ProverStage; large?: boolean }) {
   const reduce = useReducedMotion();
   const climbing = stage === "proving" && !reduce;
   const settled = stage === "done";
@@ -86,7 +86,7 @@ export function ProofViz({ stage }: { stage: ProverStage }) {
 
   return (
     <div className="flex flex-col items-center gap-3 py-1">
-      <div className="relative w-full max-w-[320px]">
+      <div className={`relative w-full ${large ? "max-w-[440px]" : "max-w-[320px]"}`}>
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Zero-knowledge Merkle inclusion proof">
           {/* Edges */}
           {EDGES.map((e, i) => {

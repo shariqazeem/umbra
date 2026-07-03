@@ -97,13 +97,14 @@ function RecordRow({ r }: { r: AuditRecord }) {
       </div>
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{r.disclosureNote}</p>
 
+      {/* the decrypt result as two evidence cards — public truth vs the disclosure you chose */}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-white/[0.02] p-3.5">
+        <div className="rounded-xl border border-border bg-white/[0.02] p-4">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">What public Stellar saw</p>
           <p className="mt-1.5 text-[13px] leading-relaxed text-foreground/90">{publicView(r)}</p>
         </div>
-        <div className="rounded-lg border border-border bg-white/[0.02] p-3.5">
-          <p className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">What you disclosed</p>
+        <div className="rounded-xl border border-[#FF3B00]/25 bg-[#FF3B00]/[0.04] p-4">
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-[#FF3B00]">What you disclosed</p>
           <div className="space-y-1.5">
             <Disclosed label="amount" value={`${r.amount} ${r.asset ?? ""}`} />
             <Disclosed label="commitment" value={r.commitment} />

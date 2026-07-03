@@ -14,6 +14,7 @@ export function Atmosphere({
   scrim = "vertical",
   priority = false,
   fixed = false,
+  blurDataURL,
 }: {
   src: string;
   className?: string;
@@ -22,6 +23,8 @@ export function Atmosphere({
   scrim?: "vertical" | "radial" | "top" | "none";
   priority?: boolean;
   fixed?: boolean;
+  /** Tiny inline base64 for a blur-up placeholder — pass for the priority hero plate. */
+  blurDataURL?: string;
 }) {
   const object =
     align === "top" ? "object-top" : align === "bottom" ? "object-bottom" : "object-center";
@@ -48,6 +51,8 @@ export function Atmosphere({
         fill
         sizes="100vw"
         priority={priority}
+        loading={priority ? undefined : "lazy"}
+        {...(blurDataURL ? { placeholder: "blur" as const, blurDataURL } : {})}
         className={cn("object-cover", object)}
         style={{ opacity }}
       />

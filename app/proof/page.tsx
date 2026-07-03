@@ -15,10 +15,34 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
+import * as React from "react";
 import Link from "next/link";
 import { Button, Card, Eyebrow, Pill, Shell } from "@/components/umbra/ui";
 import { CopyButton } from "@/components/copy-button";
 import { activeDeployment as deployment } from "@/lib/umbra/deployment";
+import { cn } from "@/lib/utils";
+
+/** Fire once when an element scrolls into view — drives the pipeline corona fill + lock pulse. */
+function useInViewOnce<T extends HTMLElement>(threshold = 0.6) {
+  const ref = React.useRef<T>(null);
+  const [seen, setSeen] = React.useState(false);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setSeen(true);
+          obs.disconnect();
+        }
+      },
+      { threshold },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return { ref, seen };
+}
 
 const D = deployment as {
   network: string;
@@ -72,7 +96,7 @@ function IdRow({ label, value, href }: { label: string; value: string; href?: st
 function TxEvidence({ kind, hash }: { kind: string; hash: string }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[15px] font-medium text-foreground">{kind}</span>
         <Pill tone="ink">
           <span className="h-1.5 w-1.5 rounded-full bg-[#FF3B00]" /> Confirmed on Horizon
@@ -106,18 +130,55 @@ function PipelineStep({
   sentence: string;
   last?: boolean;
 }) {
+  const { ref, seen } = useInViewOnce<HTMLDivElement>(0.7);
   return (
-    <div className="flex gap-4">
+    <div ref={ref} className="flex gap-4">
       <div className="flex flex-col items-center">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-[#FF3B00]">
+        {/* corona node — lights as you scroll past */}
+        <span
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-500 motion-reduce:transition-none",
+            seen
+              ? "border-[#FF3B00]/60 bg-[#FF3B00]/10 text-[#FF3B00] shadow-[0_0_16px_-2px_rgba(255,59,0,0.6)]"
+              : "border-border bg-card text-muted-foreground/50",
+          )}
+        >
           <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
         </span>
-        {!last && <span className="my-1 w-px grow bg-border" />}
+        {!last && (
+          <span
+            className={cn(
+              "my-1 w-px grow transition-colors duration-700 motion-reduce:transition-none",
+              seen ? "bg-gradient-to-b from-[#FF3B00]/50 to-border" : "bg-border",
+            )}
+          />
+        )}
       </div>
       <div className={last ? "pb-1" : "pb-6"}>
-        <p className="text-[15px] font-semibold text-foreground">{title}</p>
+        <p className={cn("text-[15px] font-semibold transition-colors motion-reduce:transition-none", seen ? "text-foreground" : "text-muted-foreground")}>
+          {title}
+        </p>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{sentence}</p>
       </div>
+    </div>
+  );
+}
+
+/** The seal between the two evidence cards — pulses once on scroll-enter. */
+function LockNode() {
+  const { ref, seen } = useInViewOnce<HTMLDivElement>(0.8);
+  return (
+    <div
+      ref={ref}
+      className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5"
+    >
+      <span className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#FF3B00]/40 bg-background text-[#FF3B00] shadow-[0_0_18px_-4px_rgba(255,59,0,0.6)]">
+        {seen && <span className="u-animate-flare absolute inset-0 rounded-full border-2 border-[#FF3B00]" />}
+        <Lock className="h-4 w-4" strokeWidth={2} />
+      </span>
+      <span className="rounded-full bg-background/90 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-[#FF3B00] backdrop-blur-sm">
+        cannot be connected
+      </span>
     </div>
   );
 }
@@ -186,7 +247,7 @@ const TESTS: [string, string][] = [
   ["@umbra/crypto-bls", "13 / 13 — Poseidon: Rust ≡ circuit ≡ TS"],
   ["vitest (unit/component)", "30 / 30"],
   ["tsc --noEmit", "clean"],
-  ["next build", "15 / 15 routes"],
+  ["next build", "16 / 16 routes"],
   ["browser → mainnet shield · transfer · unshield", "confirmed on Horizon"],
 ];
 
@@ -266,9 +327,10 @@ export default function ProofPage() {
           reveals no amount at all. Both confirmed on Horizon.
         </p>
         {D.demoTxs?.shield && D.demoTxs?.transfer ? (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="relative grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-9">
             <TxEvidence kind="Shield · deposit" hash={D.demoTxs.shield} />
             <TxEvidence kind="Confidential transfer · amount hidden" hash={D.demoTxs.transfer} />
+            <LockNode />
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-border bg-white/[0.02] p-5">
@@ -386,7 +448,7 @@ export default function ProofPage() {
           </PipelineCard>
           <PipelineCard icon={Cpu} title="Browser proving">
             Groth16 proofs are generated <span className="font-mono text-[0.9em]">in the browser</span> via snarkjs in a
-            Web Worker — off the main thread, ~2.5s for the 3.9 MB withdraw key. No server ever sees your secret.
+            Web Worker — off the main thread, ~2.5s for the 6.6 MB withdraw key. No server ever sees your secret.
           </PipelineCard>
           <PipelineCard icon={Boxes} title="The pool contract">
             <span className="font-mono text-[0.9em]">shield()</span> verifies + inserts + returns the leaf;{" "}

@@ -25,11 +25,31 @@ export async function freighterInstalled(): Promise<boolean> {
   }
 }
 
+/**
+ * Freighter (v6) surfaces failures as a `{ code, message }` object. Coercing that with
+ * `String()` collapses it to the useless "[object Object]" — extract the human message
+ * instead (falling back to a JSON form), so real errors reach the user.
+ */
+function freighterErr(e: unknown, fallback = "Freighter request failed"): string {
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object") {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string" && m.trim()) return m;
+    try {
+      const s = JSON.stringify(e);
+      if (s && s !== "{}") return s;
+    } catch {
+      /* fall through to fallback */
+    }
+  }
+  return fallback;
+}
+
 /** Prompt the user to connect Freighter; returns their public address. */
 export async function connectFreighter(): Promise<string> {
   const { requestAccess } = await freighter();
   const r = await requestAccess();
-  if ("error" in r && r.error) throw new Error(String(r.error));
+  if ("error" in r && r.error) throw new Error(freighterErr(r.error));
   if (!r.address) throw new Error("Freighter returned no address");
   return r.address;
 }
@@ -62,7 +82,7 @@ export async function freighterSign(
 ): Promise<string> {
   const { signTransaction } = await freighter();
   const r = await signTransaction(xdr, { networkPassphrase, address });
-  if ("error" in r && r.error) throw new Error(String(r.error));
+  if ("error" in r && r.error) throw new Error(freighterErr(r.error));
   return r.signedTxXdr;
 }
 

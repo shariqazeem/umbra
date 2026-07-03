@@ -7,7 +7,6 @@ import {
   FileCode2,
   Github,
   GitBranch,
-  KeyRound,
   Link2,
   Lock,
   ShieldCheck,
@@ -18,8 +17,9 @@ import { CopyButton } from "@/components/copy-button";
 import { UMBRA_CONFIG } from "@/lib/umbra/config";
 import { explorerContractUrl } from "@/lib/umbra/network";
 
-// Follow whatever network the app is armed for (env-driven) rather than hardcoding testnet.
-const POOL = UMBRA_CONFIG.poolContractId || "CBA5KVEZQLFGYGGK6Z3HPWBGYVZVDXAL5LNQIS7ISHVGBNB2V43DVXYA";
+// Follow whatever network the app is armed for (env-driven). The fallback is the real deployed
+// mainnet pool, so a no-env build never shows a testnet id under a "mainnet" header.
+const POOL = UMBRA_CONFIG.poolContractId || "CBWIV33FQ27LOTA2LGM5SVL2WHAMBFLZTYOZXWKEMDBFCLU4BNIUQOLU";
 const NETWORK = UMBRA_CONFIG.networkPassphrase;
 const RPC = UMBRA_CONFIG.rpcUrl;
 const EXPLORER = explorerContractUrl(POOL);

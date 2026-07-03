@@ -15,7 +15,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AmountField, Button, Card, Eyebrow, Field, Pill, Shell } from "@/components/umbra/ui";
+import { EclipseGlyph, type EclipseState } from "@/components/umbra/eclipse-glyph";
+import { cn } from "@/lib/utils";
 import { CryptoTimeline, SHIELD_STEPS } from "@/components/umbra/crypto-timeline";
 import { WalletConnect } from "@/components/umbra/wallet-connect";
 import { SuccessMark } from "@/components/umbra/success-mark";
@@ -44,6 +47,23 @@ const NO_NOTES: WalletNote[] = [];
 const ASSET = "XLM";
 const EXPLORER_TX = (h: string) => explorerTxUrl(h);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Surface a readable error string from anything thrown — never "[object Object]" or blank. */
+function errMsg(e: unknown, fallback = "Something went wrong. Please try again."): string {
+  if (e instanceof Error && e.message) return e.message;
+  if (typeof e === "string" && e.trim()) return e;
+  if (e && typeof e === "object") {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === "string" && m.trim()) return m;
+    try {
+      const s = JSON.stringify(e);
+      if (s && s !== "{}") return s;
+    } catch {
+      /* fall through to fallback */
+    }
+  }
+  return fallback;
+}
 
 type View = "home" | "shield" | "send" | "transfer" | "unshield" | "paylink";
 type Phase = "form" | "working" | "done" | "error";
@@ -165,7 +185,7 @@ export default function WalletPage() {
       });
       setPhase("done");
     } catch (e) {
-      setMsg((e as Error).message);
+      setMsg(errMsg(e));
       setPhase("error");
     }
   }
@@ -289,7 +309,7 @@ export default function WalletPage() {
       setPhase("done");
     } catch (e) {
       setSpendNote(null);
-      setMsg((e as Error).message);
+      setMsg(errMsg(e));
       setPhase("error");
     }
   }
@@ -389,7 +409,7 @@ export default function WalletPage() {
       });
       setPhase("done");
     } catch (e) {
-      setMsg((e as Error).message);
+      setMsg(errMsg(e));
       setPhase("error");
     }
   }
@@ -415,73 +435,155 @@ export default function WalletPage() {
       });
       setPhase("done");
     } catch (e) {
-      setMsg((e as Error).message);
+      setMsg(errMsg(e));
       setPhase("error");
     }
   }
 
+  // The eclipse card is the app's heartbeat — its state mirrors the real system state.
+  const sheetOpen = view !== "home";
+  const eclipseState: EclipseState =
+    sheetOpen && phase === "done"
+      ? "success"
+      : sheetOpen && phase === "working"
+        ? "proving"
+        : syncing
+          ? "syncing"
+          : "idle";
+
   return (
     <Shell active="/wallet" atmosphere="/art/vault.png">
       <div className="mx-auto max-w-xl">
-        {view === "home" ? (
-          <Home
-            balance={stroopsToXlm(balance)}
-            notes={notes}
-            wallet={wallet}
-            onAction={go}
-            syncing={syncing}
-            onSync={syncFromChain}
-          />
-        ) : (
-          <ActionPanel
-            view={view}
-            phase={phase}
-            txStep={txStep}
-            spendNote={spendNote}
-            prover={prover}
-            wallet={wallet}
-            amount={amount}
-            setAmount={setAmount}
-            to={to}
-            setTo={setTo}
-            msg={msg}
-            link={link}
-            copied={copied}
-            setCopied={setCopied}
-            balance={stroopsToXlm(balance)}
-            lastAmount={lastAmount}
-            lastTo={lastTo}
-            onBack={() => go("home")}
-            onShield={onShield}
-            onSend={onSend}
-            onTransfer={doTransfer}
-            onUnshield={onUnshield}
-            onPayLink={onPayLink}
-            claim={claim}
-          />
-        )}
+        <WalletHeader balance={stroopsToXlm(balance)} eclipseState={eclipseState} />
+
+        <div className="relative mt-6">
+          <HomeBody notes={notes} wallet={wallet} onAction={go} syncing={syncing} onSync={syncFromChain} dim={sheetOpen} />
+
+          <AnimatePresence>
+            {sheetOpen && (
+              <Sheet key="sheet" onBack={() => go("home")} locked={phase === "working"}>
+                <ActionPanel
+                  view={view}
+                  phase={phase}
+                  txStep={txStep}
+                  spendNote={spendNote}
+                  prover={prover}
+                  wallet={wallet}
+                  amount={amount}
+                  setAmount={setAmount}
+                  to={to}
+                  setTo={setTo}
+                  msg={msg}
+                  link={link}
+                  copied={copied}
+                  setCopied={setCopied}
+                  balance={stroopsToXlm(balance)}
+                  lastAmount={lastAmount}
+                  lastTo={lastTo}
+                  onBack={() => go("home")}
+                  onShield={onShield}
+                  onSend={onSend}
+                  onTransfer={doTransfer}
+                  onUnshield={onUnshield}
+                  onPayLink={onPayLink}
+                  claim={claim}
+                />
+              </Sheet>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </Shell>
   );
 }
 
-/* ── Home: balance + actions + roadmap + activity ── */
+/* ── The iOS sheet: slides up over a dimmed Home, spring-clean. Reduced motion → a plain swap. ── */
 
-function Home({
-  balance,
+function Sheet({ children, onBack, locked }: { children: React.ReactNode; onBack: () => void; locked: boolean }) {
+  const reduce = useReducedMotion();
+  const spring = { type: "spring", stiffness: 320, damping: 34 } as const;
+  return (
+    <>
+      <motion.div
+        aria-hidden
+        onClick={locked ? undefined : onBack}
+        className="absolute inset-0 -m-2 rounded-[28px] bg-background/55 backdrop-blur-[2px]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+      />
+      <motion.div
+        className="absolute inset-x-0 top-0"
+        initial={reduce ? { opacity: 0 } : { opacity: 0, y: 28 }}
+        animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, transition: spring }}
+        exit={reduce ? { opacity: 0 } : { opacity: 0, y: 22, transition: { duration: 0.18 } }}
+      >
+        {children}
+      </motion.div>
+    </>
+  );
+}
+
+/* ── The eclipse card: the product icon made monumental. Persistent — its corona is the
+   app's heartbeat, tracking idle → syncing → proving → totality. ── */
+
+function WalletHeader({ balance, eclipseState }: { balance: string; eclipseState: EclipseState }) {
+  const status =
+    eclipseState === "proving"
+      ? "Proving"
+      : eclipseState === "syncing"
+        ? "Syncing"
+        : eclipseState === "success"
+          ? "Confirmed"
+          : "Private";
+  return (
+    <>
+      <Eyebrow>Privacy wallet</Eyebrow>
+      <h1 className="mt-3 font-display text-4xl font-extrabold uppercase tracking-tight text-foreground">Your private balance</h1>
+
+      <Card
+        className={cn(
+          "u-signal-glow mt-6 overflow-hidden p-6 transition-shadow duration-500 sm:p-7",
+          eclipseState === "proving" && "shadow-signal",
+        )}
+      >
+        <div className="flex items-center gap-4">
+          <div className="min-w-0 flex-1">
+            <span className="text-sm text-muted-foreground">Shielded balance</span>
+            <p className="mt-1.5 font-mono text-display-sm font-semibold leading-none tracking-tight text-foreground">
+              <AnimatedNumber value={balance} /> <span className="text-2xl text-muted-foreground">{ASSET}</span>
+            </p>
+            <div className="mt-3.5">
+              <Pill tone="signal"><Lock className="h-3 w-3" /> {status}</Pill>
+            </div>
+          </div>
+          <EclipseGlyph state={eclipseState} size={116} />
+        </div>
+      </Card>
+    </>
+  );
+}
+
+/* ── Home body: wallet connect, actions, roadmap, activity, recovery, disclosure. Dims and
+   scales back behind the sheet — an iOS presenting screen. ── */
+
+function HomeBody({
   notes,
   wallet,
   onAction,
   syncing,
   onSync,
+  dim,
 }: {
-  balance: string;
   notes: WalletNote[];
   wallet: ReturnType<typeof useWallet>;
   onAction: (v: View) => void;
   syncing: boolean;
   onSync: () => void;
+  dim: boolean;
 }) {
+  const reduce = useReducedMotion();
   const actions: { v: View; label: string; sub: string; Icon: typeof Send }[] = [
     { v: "transfer", label: "Private send", sub: "Hidden amount → a private claim link", Icon: Sparkles },
     { v: "shield", label: "Shield", sub: "Deposit privately", Icon: ArrowDownToLine },
@@ -490,22 +592,14 @@ function Home({
     { v: "paylink", label: "Pay link", sub: "Request a payment", Icon: Link2 },
   ];
   return (
-    <>
-      <Eyebrow>Privacy wallet</Eyebrow>
-      <h1 className="mt-3 font-display text-4xl font-extrabold uppercase tracking-tight text-foreground">Your private balance</h1>
-
-      {/* Balance */}
-      <Card className="u-signal-glow mt-6 overflow-hidden p-7">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Shielded balance</span>
-          <Pill tone="signal"><Lock className="h-3 w-3" /> Private</Pill>
-        </div>
-        <p className="mt-2 font-mono text-5xl font-semibold tracking-tight text-foreground">
-          <AnimatedNumber value={balance} /> <span className="text-2xl text-muted-foreground">{ASSET}</span>
-        </p>
-      </Card>
-
-      {isChainConfigured() && <WalletConnect wallet={wallet} className="mt-4" />}
+    <motion.div
+      aria-hidden={dim}
+      animate={{ scale: dim && !reduce ? 0.985 : 1, opacity: dim ? 0.5 : 1 }}
+      transition={{ type: "spring", stiffness: 300, damping: 32 }}
+      style={{ transformOrigin: "top center" }}
+      className={cn(dim && "pointer-events-none select-none")}
+    >
+      {isChainConfigured() && <WalletConnect wallet={wallet} />}
 
       {/* Recover-from-chain status */}
       {isChainConfigured() && wallet.signer && (
@@ -524,27 +618,37 @@ function Home({
         </div>
       )}
 
-      {/* Actions */}
-      <div className="mt-6 grid grid-cols-2 gap-3">
-        {actions.map((a) => (
-          <button
-            key={a.v}
-            onClick={() => onAction(a.v)}
-            className={`group flex flex-col items-start gap-3 rounded-2xl border p-5 text-left transition-colors ${
-              a.v === "transfer"
-                ? "col-span-2 border-[#FF3B00]/40 bg-[#FF3B00]/[0.05] hover:border-[#FF3B00]"
-                : "border-border bg-card hover:border-[#FF3B00]/50"
-            }`}
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FF3B00]/10 text-[#FF3B00]">
-              <a.Icon className="h-5 w-5" strokeWidth={2} />
-            </span>
-            <span>
-              <span className="block text-[15px] font-semibold text-foreground">{a.label}</span>
-              <span className="block text-xs text-muted-foreground">{a.sub}</span>
-            </span>
-          </button>
-        ))}
+      {/* Actions — app tiles. Ember only on Private send (the hero action). */}
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        {actions.map((a) => {
+          const hero = a.v === "transfer";
+          return (
+            <motion.button
+              key={a.v}
+              onClick={() => onAction(a.v)}
+              whileHover={reduce ? undefined : { y: -2 }}
+              whileTap={reduce ? undefined : { scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 400, damping: 26 }}
+              className={cn(
+                "flex flex-col items-start gap-3 rounded-2xl border p-5 text-left",
+                hero ? "col-span-2 border-[#FF3B00]/40 bg-[#FF3B00]/[0.06]" : "border-border bg-card hover:border-white/15",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-xl",
+                  hero ? "bg-[#FF3B00]/15 text-[#FF3B00]" : "bg-white/[0.05] text-foreground",
+                )}
+              >
+                <a.Icon className="h-5 w-5" strokeWidth={2} />
+              </span>
+              <span>
+                <span className="block text-[15px] font-semibold text-foreground">{a.label}</span>
+                <span className="block text-xs text-muted-foreground">{a.sub}</span>
+              </span>
+            </motion.button>
+          );
+        })}
       </div>
 
       {/* Roadmap */}
@@ -562,36 +666,47 @@ function Home({
         ))}
       </div>
 
-      {/* Activity */}
+      {/* Activity — a native list: mono amounts right-aligned, hairline rows, no cards-in-cards. */}
       <h2 className="mb-3 mt-10 text-sm font-semibold text-muted-foreground">Activity</h2>
       {notes.length === 0 ? (
-        <Card className="p-10 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card px-6 py-12 text-center">
+          <EclipseGlyph state="idle" size={64} />
           <p className="font-medium text-foreground">No activity yet</p>
-          <p className="mt-1.5 text-sm text-muted-foreground">Shield some funds to get started.</p>
-          <Button className="mt-5" onClick={() => onAction("shield")}>Shield funds</Button>
-        </Card>
+          <button
+            onClick={() => onAction("shield")}
+            className="text-sm font-medium text-[#FF3B00] underline-offset-4 hover:underline"
+          >
+            Shield funds
+          </button>
+        </div>
       ) : (
-        <div className="flex flex-col gap-2.5">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
           {notes.map((n, i) => {
             const d = describe(n);
             return (
-              <Card key={i} className={`flex items-center justify-between border-l-2 ${d.accent} p-4 pl-5`}>
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.04] text-muted-foreground">
+              <div
+                key={i}
+                className={cn("flex items-center justify-between gap-3 px-5 py-3.5", i > 0 && "border-t border-border/60")}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-muted-foreground">
                     <d.Icon className="h-4 w-4" strokeWidth={2} />
                   </span>
-                  <div>
-                    <p className="text-[15px] font-medium text-foreground">{d.verb}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-[15px] font-medium text-foreground">{d.verb}</p>
                     <p className="font-mono text-xs text-muted-foreground">
                       {n.leafIndex !== null ? `note #${n.leafIndex}` : "pending"}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[15px] font-medium text-foreground">{d.sign}{stroopsToXlm(n.value)} {ASSET}</span>
-                  <Pill tone={d.tone}>{d.label}</Pill>
+                <div className="shrink-0 text-right">
+                  <p className={cn("font-mono text-[15px] font-medium", d.sign === "+" ? "text-verify" : "text-foreground")}>
+                    {d.sign}
+                    {stroopsToXlm(n.value)} {ASSET}
+                  </p>
+                  <p className="font-mono text-[11px] text-muted-foreground">{d.label}</p>
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
@@ -608,7 +723,7 @@ function Home({
       <div className="mt-10">
         <DisclosureKit />
       </div>
-    </>
+    </motion.div>
   );
 }
 
@@ -637,18 +752,24 @@ function RecoveryCard({ hasWallet, syncing, onSync }: { hasWallet: boolean; sync
         note&rsquo;s opening is encrypted to your wallet&rsquo;s key. A payment someone sent you is claimed from its
         one-time link.
       </p>
-      <div className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-        {RECOVERY_STEPS.map((s, i) => (
-          <div key={s.t} className="flex gap-3">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#FF3B00]/10 font-mono text-[11px] font-semibold text-[#FF3B00]">
-              {i + 1}
-            </span>
-            <div>
-              <p className="text-[14px] font-medium text-foreground">{s.t}</p>
-              <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{s.s}</p>
+      <div className="mt-5">
+        {RECOVERY_STEPS.map((s, i) => {
+          const last = i === RECOVERY_STEPS.length - 1;
+          return (
+            <div key={s.t} className="flex gap-3.5">
+              <div className="flex flex-col items-center self-stretch">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#FF3B00]/10 font-mono text-[11px] font-semibold text-[#FF3B00]">
+                  {i + 1}
+                </span>
+                {!last && <span className="w-px grow bg-gradient-to-b from-[#FF3B00]/30 to-border" />}
+              </div>
+              <div className={last ? "pb-0.5" : "pb-5"}>
+                <p className="text-[14px] font-medium text-foreground">{s.t}</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{s.s}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {hasWallet && (
         <div className="mt-5 border-t border-border pt-4">
@@ -705,14 +826,14 @@ function ActionPanel(props: {
   }[view];
 
   return (
-    <>
+    <div className="u-card-lg overflow-hidden rounded-[28px] p-6 sm:p-7">
       <button onClick={onBack} className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Wallet
       </button>
       <h1 className="font-display text-3xl font-extrabold uppercase tracking-tight text-foreground">{meta.title}</h1>
       <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{meta.sub}</p>
 
-      <Card className="mt-7 p-6 sm:p-7">
+      <div className="mt-7">
         {phase === "done" ? (
           <Success
             view={view}
@@ -728,36 +849,40 @@ function ActionPanel(props: {
           view === "paylink" ? (
             <CryptoTimeline steps={SHIELD_STEPS} running done={false} />
           ) : (
-            <div className="flex flex-col gap-6">
+            /* THE PROVING MOMENT — full-bleed proof art + the live prover terminal. */
+            <div className="flex flex-col gap-6 py-2">
               {props.spendNote && (
                 <p className="text-center font-mono text-xs text-[#FF3B00]">
                   Cashing out across notes — {props.spendNote.i} of {props.spendNote.n}
                 </p>
               )}
-              <ProofViz stage={prover.stage} />
+              <ProofViz stage={prover.stage} large />
               <TxProgress step={txStep} prover={prover} chain={isChainConfigured()} />
             </div>
           )
         ) : (
           <div className="flex flex-col gap-5">
-            {(view === "send" || view === "unshield" || view === "transfer") && (
-              <div className="rounded-xl bg-white/[0.04] px-5 py-4">
-                <p className="text-sm text-muted-foreground">Private balance</p>
-                <p className="mt-1 font-mono text-2xl font-semibold text-foreground"><AnimatedNumber value={balance} /> <span className="text-base text-muted-foreground">{ASSET}</span></p>
-              </div>
-            )}
-            <AmountField
-              label={
-                view === "transfer" || view === "send"
-                  ? "Amount to send"
-                  : view === "unshield"
-                    ? "Amount to cash out"
-                    : "Amount"
-              }
-              suffix={ASSET}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+            {/* Hero amount input */}
+            <div>
+              <AmountField
+                hero
+                label={
+                  view === "transfer" || view === "send"
+                    ? "Amount to send"
+                    : view === "unshield"
+                      ? "Amount to cash out"
+                      : "Amount"
+                }
+                suffix={ASSET}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              {(view === "send" || view === "unshield" || view === "transfer") && (
+                <p className="mt-2 font-mono text-xs text-muted-foreground">
+                  Available · <AnimatedNumber value={balance} /> {ASSET}
+                </p>
+              )}
+            </div>
             {view === "transfer" && (
               <p className="rounded-xl border border-[#FF3B00]/20 bg-[#FF3B00]/[0.04] px-4 py-3 text-sm leading-relaxed text-muted-foreground">
                 Send any amount — your <span className="text-foreground">change comes back to you</span>,
@@ -783,8 +908,23 @@ function ActionPanel(props: {
             {phase === "error" && <p className="text-sm text-destructive">{msg}</p>}
           </div>
         )}
-      </Card>
-    </>
+      </div>
+    </div>
+  );
+}
+
+/** Evidence cells rise in with a small stagger; reduced motion → a plain fade (readable as text). */
+function Rise({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      className={className}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10 }}
+      animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
+      transition={{ duration: 0.42, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -817,34 +957,37 @@ function Success({
           A confidential transfer landed on-chain — the ledger sees a nullifier and a new
           commitment, never the amount. Hand this claim to your recipient to receive it:
         </p>
-        <div className="rounded-2xl border border-border bg-white p-4">
-          <QRCodeSVG value={url} size={160} marginSize={0} />
+        {/* QR + claim link on the glass material */}
+        <div className="u-glass w-full rounded-2xl p-5">
+          <div className="mx-auto w-fit rounded-2xl bg-white p-4">
+            <QRCodeSVG value={url} size={160} marginSize={0} />
+          </div>
+          <div className="mt-4 flex w-full items-center gap-2 rounded-lg bg-white/[0.04] p-2 pl-4 text-left">
+            <span className="flex-1 truncate font-mono text-sm text-muted-foreground">{url}</span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                navigator.clipboard?.writeText(url);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1600);
+              }}
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Bearer claim — whoever opens it receives the funds. Share it privately.
+          </p>
         </div>
-        <div className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] p-2 pl-4 text-left">
-          <span className="flex-1 truncate font-mono text-sm text-muted-foreground">{url}</span>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              navigator.clipboard?.writeText(url);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1600);
-            }}
-          >
-            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {copied ? "Copied" : "Copy"}
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Bearer claim — whoever opens it receives the funds. Share it privately.
-        </p>
         {msg ? (
           <a
             href={EXPLORER_TX(msg)}
             target="_blank"
             rel="noreferrer noopener"
             referrerPolicy="no-referrer"
-            className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 font-mono text-[11px] text-[#FF3B00] transition-colors hover:bg-white/[0.04]"
           >
             View the transfer on-chain →
           </a>
@@ -856,14 +999,16 @@ function Success({
     const url = linkUrl(link.id);
     return (
       <div className="flex flex-col items-center gap-4 py-2 text-center">
-        <div className="rounded-2xl border border-border bg-white p-4">
-          <QRCodeSVG value={url} size={172} marginSize={0} />
-        </div>
-        <div className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] p-2 pl-4 text-left">
-          <span className="flex-1 truncate font-mono text-sm text-muted-foreground">{url}</span>
-          <Button size="sm" variant="secondary" onClick={() => { navigator.clipboard?.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1600); }}>
-            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? "Copied" : "Copy"}
-          </Button>
+        <div className="u-glass w-full rounded-2xl p-5">
+          <div className="mx-auto w-fit rounded-2xl bg-white p-4">
+            <QRCodeSVG value={url} size={172} marginSize={0} />
+          </div>
+          <div className="mt-4 flex w-full items-center gap-2 rounded-lg bg-white/[0.04] p-2 pl-4 text-left">
+            <span className="flex-1 truncate font-mono text-sm text-muted-foreground">{url}</span>
+            <Button size="sm" variant="secondary" onClick={() => { navigator.clipboard?.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1600); }}>
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
         </div>
         <p className="text-sm text-muted-foreground">Share it. Anyone can pay privately; only you can withdraw.</p>
       </div>
@@ -891,19 +1036,19 @@ function Success({
       <SuccessMark className="mx-auto" />
       <p className="text-lg font-semibold text-foreground">{titles[view] ?? "Done"}</p>
       <div className="mt-1 grid w-full gap-3 text-left sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-white/[0.02] p-4">
+        <Rise delay={0.06} className="rounded-xl border border-border bg-white/[0.02] p-4">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">What you did</p>
           <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{youDid[view]}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-white/[0.02] p-4">
+        </Rise>
+        <Rise delay={0.12} className="rounded-xl border border-border bg-white/[0.02] p-4">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">What the Stellar ledger sees</p>
           <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{chainSees[view]}</p>
-        </div>
+        </Rise>
       </div>
-      <div className="w-full rounded-xl border border-[#FF3B00]/25 bg-[#FF3B00]/[0.04] p-4 text-left">
+      <Rise delay={0.18} className="w-full rounded-xl border border-[#FF3B00]/25 bg-[#FF3B00]/[0.04] p-4 text-left">
         <p className="text-[11px] uppercase tracking-wider text-[#FF3B00]">What Umbra proved privately</p>
         <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{provedPrivately[view]}</p>
-      </div>
+      </Rise>
       {msg ? (
         <a
           href={EXPLORER_TX(msg)}

@@ -4,10 +4,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * The cryptography timeline — shown during proof generation. Reads like a bank's
- * security verification, not a hacker terminal: a calm vertical commit-history of
- * steps, mono values for the computational ones, the signal color reserved for the
- * active step and the final "generated" tick (the one genuine cryptographic moment).
+ * The cryptography timeline — shown during proof generation for flows that don't surface
+ * granular prover stages (payment links, funding). Rendered as the SAME live mono terminal
+ * as the wallet's TxProgress, so every proving moment across the ecosystem reads identically.
+ * Time-driven step advancement (calm, bank-grade), never a hacker firehose.
  */
 
 export interface TimelineStep {
@@ -36,35 +36,10 @@ export const FUND_STEPS: TimelineStep[] = [
   { label: "Payment protected" },
 ];
 
-type Status = "pending" | "active" | "done";
-
 function randHash(): string {
   const hex = (n: number) =>
     Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
   return `0x${hex(4)}…${hex(4)}`;
-}
-
-function Node({ status, isFinal }: { status: Status; isFinal: boolean }) {
-  if (status === "done") {
-    if (isFinal) {
-      return (
-        <span className="u-animate-check relative flex h-[22px] w-[22px] items-center justify-center">
-          <span className="absolute h-[22px] w-[22px] rounded-full bg-[#FF3B00]/25 blur-[3px]" />
-          <span className="relative h-3 w-3 rounded-full bg-[#FF3B00] shadow-[0_0_10px_rgba(255,59,0,0.9)]" />
-        </span>
-      );
-    }
-    return <span className="flex h-[22px] w-[22px] items-center justify-center"><span className="h-2.5 w-2.5 rounded-full bg-foreground" /></span>;
-  }
-  if (status === "active") {
-    return (
-      <span className="relative flex h-[22px] w-[22px] items-center justify-center">
-        <span className="u-animate-pulse absolute inline-flex h-[22px] w-[22px] rounded-full bg-[#FF3B00]/20" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#FF3B00]" />
-      </span>
-    );
-  }
-  return <span className="flex h-[22px] w-[22px] items-center justify-center"><span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-border" /></span>;
 }
 
 export function CryptoTimeline({
@@ -103,48 +78,42 @@ export function CryptoTimeline({
   }, [running, done, steps.length]);
 
   return (
-    <div className={cn("u-card p-6", className)}>
-      <ol className="flex flex-col">
-        {steps.map((step, i) => {
-          const status: Status = done || i < current ? "done" : i === current && running ? "active" : "pending";
-          const isFinal = i === steps.length - 1;
-          const showMono = step.mono && (status === "active" || status === "done") && hashes[i];
-          return (
-            <li key={step.label} className="relative flex gap-3.5">
-              <div className="flex flex-col items-center">
-                <Node status={status} isFinal={isFinal} />
-                {!isFinal && (
-                  <span className={cn("w-px flex-1", i < current ? "bg-foreground/25" : "bg-border")} />
-                )}
-              </div>
-              <div className={cn("flex flex-1 flex-col pb-5", isFinal && "pb-0")}>
-                <span
-                  className={cn(
-                    "text-[15px] leading-[22px] transition-colors duration-300",
-                    status === "pending" && "text-muted-foreground",
-                    status === "active" && "font-medium text-foreground",
-                    status === "done" && "text-muted-foreground",
-                  )}
-                >
-                  {step.label}
-                </span>
-                {showMono && (
-                  <span
-                    className={cn(
-                      "mt-1 font-mono text-xs text-muted-foreground/80",
-                      status === "active" && "u-animate-pulse",
-                      "u-animate-fade-up",
-                    )}
-                  >
-                    {hashes[i]}
-                  </span>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+    <div
+      className={cn(
+        "rounded-xl border border-white/10 bg-[#080808] p-4 font-mono text-[13px] leading-[1.7] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
+        className,
+      )}
+    >
+      <div className="mb-2.5 flex items-center gap-1.5 text-[11px] tracking-wide text-muted-foreground/60">
+        <span className="h-2 w-2 rounded-full bg-[#FF3B00]/70 shadow-[0_0_6px_rgba(255,59,0,0.7)]" />
+        umbra · prover
+      </div>
+      {steps.map((step, i) => {
+        const status = done || i < current ? "done" : i === current && running ? "active" : "pending";
+        if (status === "pending") return null; // terminal reveals lines as they're reached
+        const isFinal = i === steps.length - 1;
+        const check = status === "done";
+        const mono = step.mono && hashes[i] ? ` · ${hashes[i]}` : "";
+        return (
+          <div
+            key={step.label}
+            className={cn("flex items-baseline gap-2", status === "done" ? "text-muted-foreground/70" : "text-foreground")}
+          >
+            <span className="w-3 shrink-0 text-[#FF3B00]">{check ? "✓" : "›"}</span>
+            <span className="flex-1 break-all">
+              {step.label.toLowerCase()}
+              {mono}
+            </span>
+            {status === "active" && !isFinal && <span className="u-animate-pulse text-[#FF3B00]">▍</span>}
+          </div>
+        );
+      })}
+      {error && (
+        <div className="mt-1 flex gap-2 text-destructive">
+          <span className="w-3 shrink-0">✕</span>
+          {error}
+        </div>
+      )}
     </div>
   );
 }

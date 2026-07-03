@@ -28,7 +28,7 @@ export function MainnetGate({ className }: { className?: string }) {
   const capXlm = canary ? Number(FLAGS.MAX_MAINNET_DEPOSIT / 10_000_000n) : 0;
   if (canary) {
     return (
-      <div className={cn("flex items-start gap-3 rounded-xl border border-[#FF3B00]/30 bg-[#FF3B00]/[0.06] px-4 py-3", className)}>
+      <div className={cn("u-glass flex items-start gap-3 rounded-xl px-4 py-3", className)}>
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#FF3B00]" />
         <div>
           <p className="text-sm font-medium text-foreground">

@@ -5,20 +5,31 @@ import { ArrowUpRight, Eye, Lock } from "lucide-react";
 import { Button, Card, Eyebrow, Shell } from "@/components/umbra/ui";
 import { MainnetGate } from "@/components/umbra/mainnet-gate";
 import { BEFORE_REAL_ASSETS, READINESS, type ReadinessStatus } from "@/lib/umbra/network";
+import { cn } from "@/lib/utils";
 
-const STATUS: Record<ReadinessStatus, { label: string; dot: string; text: string }> = {
-  live: { label: "Live", dot: "bg-[#FF3B00]", text: "text-[#FF3B00]" },
-  gated: { label: "Security-gated", dot: "bg-amber-500", text: "text-amber-500" },
-  required: { label: "Required", dot: "bg-destructive", text: "text-destructive" },
-  roadmap: { label: "Roadmap", dot: "bg-muted-foreground/50", text: "text-muted-foreground" },
+const LABEL: Record<ReadinessStatus, string> = {
+  live: "Live",
+  gated: "Security-gated",
+  required: "Required",
+  roadmap: "Roadmap",
 };
 
+/** Live = a lit corona dot; everything else = a hollow ring. No red chips exist in READINESS. */
 function StatusChip({ status }: { status: ReadinessStatus }) {
-  const s = STATUS[status];
+  const live = status === "live";
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white/[0.02] px-2.5 py-1">
-      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-      <span className={`font-mono text-[10px] uppercase tracking-wider ${s.text}`}>{s.label}</span>
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-2.5 py-1">
+      {live ? (
+        <span className="relative flex h-2 w-2 items-center justify-center">
+          <span className="absolute inline-flex h-2.5 w-2.5 rounded-full bg-[#FF3B00]/40 blur-[1px]" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#FF3B00] shadow-[0_0_6px_rgba(255,59,0,0.9)]" />
+        </span>
+      ) : (
+        <span className="h-2 w-2 rounded-full border border-muted-foreground/60" />
+      )}
+      <span className={cn("font-mono text-[10px] uppercase tracking-wider", live ? "text-[#FF3B00]" : "text-muted-foreground")}>
+        {LABEL[status]}
+      </span>
     </span>
   );
 }
