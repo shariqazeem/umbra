@@ -6,6 +6,9 @@ name: pool-snapshot
 # break once the pool ages past retention. Runs every 6 hours (well inside the 24h minimum) and
 # commits public/pool-snapshot.mainnet.json only when new leaves appear. The wallet seeds its tree
 # from that snapshot plus recent live events (lib/umbra/recovery.ts).
+#
+# This repo is a pnpm workspace (packageManager: pnpm@9.x, workspace:* protocol) — npm cannot
+# install it (EUNSUPPORTEDPROTOCOL on "workspace:*"), so we use pnpm here exactly like Vercel does.
 
 on:
   schedule:
@@ -25,15 +28,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      # pnpm version is read from the "packageManager" field in package.json.
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Build snapshot
         env:
           # Optional: a longer-retention RPC. Defaults to the public mainnet RPC when unset.
           SNAPSHOT_RPC_URL: ${{ secrets.SNAPSHOT_RPC_URL }}
-        run: npx --yes tsx scripts/build-snapshot.mts
+        run: pnpm exec tsx scripts/build-snapshot.mts
       - name: Commit if the snapshot changed
         run: |
           if git diff --quiet -- public/pool-snapshot.mainnet.json; then
