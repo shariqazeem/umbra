@@ -21,6 +21,7 @@ import {
   scanPoolEvents,
   deserializeSnapshot,
   emptyScan,
+  withRpcRetry,
   type PoolSnapshot,
   type ScannedEvents,
 } from "./pool-events";
@@ -62,16 +63,18 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   // Seed from the permanent snapshot, then top up with only the events newer than it.
   const acc: ScannedEvents = (await loadSnapshot()) ?? emptyScan();
 
-  const latest = await server.getLatestLedger();
+  const latest = await withRpcRetry(() => server.getLatestLedger());
   // Probe the RPC's oldest retained ledger so the scan start can never fall before it (getEvents
   // errors otherwise).
   let oldestRetained = 0;
   try {
-    const probe = await server.getEvents({
-      startLedger: Math.max(1, latest.sequence - 256),
-      filters: [{ type: "contract" as const, contractIds: [pool] }],
-      limit: 1,
-    } as Parameters<typeof server.getEvents>[0]);
+    const probe = await withRpcRetry(() =>
+      server.getEvents({
+        startLedger: Math.max(1, latest.sequence - 256),
+        filters: [{ type: "contract" as const, contractIds: [pool] }],
+        limit: 1,
+      } as Parameters<typeof server.getEvents>[0]),
+    );
     oldestRetained = Number((probe as { oldestLedger?: number }).oldestLedger ?? 0);
   } catch {
     /* probe failed — use the fallback window below */

@@ -15,6 +15,7 @@ import {
   serializeSnapshot,
   deserializeSnapshot,
   emptyScan,
+  withRpcRetry,
   type PoolSnapshot,
 } from "../lib/umbra/pool-events";
 
@@ -36,16 +37,18 @@ if (existsSync(OUT)) {
   if (prev.pool === POOL) acc = deserializeSnapshot(prev);
 }
 
-const latest = await server.getLatestLedger();
+const latest = await withRpcRetry(() => server.getLatestLedger());
 // Clamp the scan start to the RPC's oldest retained ledger (getEvents errors before it).
 let oldest = 0;
 try {
-  const probe = await server.getEvents({
-    startLedger: Math.max(1, latest.sequence - 256),
-    filters: [{ type: "contract", contractIds: [POOL] }],
-    limit: 1,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  const probe = await withRpcRetry(() =>
+    server.getEvents({
+      startLedger: Math.max(1, latest.sequence - 256),
+      filters: [{ type: "contract", contractIds: [POOL] }],
+      limit: 1,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any),
+  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   oldest = Number((probe as any).oldestLedger ?? 0);
 } catch {

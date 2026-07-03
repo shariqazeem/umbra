@@ -53,6 +53,41 @@ const hex = (b: Uint8Array): string => Array.from(b, (x) => x.toString(16).padSt
 const unhex = (s: string): Uint8Array =>
   s ? Uint8Array.from(s.match(/.{1,2}/g)!.map((h) => parseInt(h, 16))) : new Uint8Array(0);
 
+/* ── Transient-failure retry for RPC calls ──────────────────────────────────────────────────────
+ * Public Soroban RPCs rate-limit shared IPs (CI runners, busy Wi-Fi) with HTTP 429, and can return
+ * 5xx / network blips. A single un-retried failure aborts the scan mid-way, so the caller rebuilds
+ * an INCOMPLETE Merkle tree → a root the contract never held → the spend reverts with Error(#4).
+ * Exponential backoff makes a transient throttle recoverable instead of corrupting recovery. */
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+function httpStatus(e: unknown): number | undefined {
+  const anyE = e as { response?: { status?: number }; status?: number; message?: unknown };
+  const s = anyE?.response?.status ?? anyE?.status;
+  if (typeof s === "number") return s;
+  const m = /status code (\d{3})/i.exec(String(anyE?.message ?? ""));
+  return m ? Number(m[1]) : undefined;
+}
+
+export async function withRpcRetry<T>(fn: () => Promise<T>, attempts = 6): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const s = httpStatus(e);
+      const msg = String((e as { message?: unknown })?.message ?? "");
+      const retryable =
+        s === 429 ||
+        (s !== undefined && s >= 500 && s <= 599) ||
+        (s === undefined && /timeout|network|fetch failed|econnreset|etimedout|eai_again|socket hang up/i.test(msg));
+      if (!retryable || i === attempts - 1) throw e;
+      await sleep(Math.min(1000 * 2 ** i, 16000) + Math.floor(Math.random() * 250));
+    }
+  }
+  throw lastErr;
+}
+
 /**
  * Scan the pool's events from `startLedger` forward, merging into `acc` (so callers can continue
  * an existing snapshot incrementally). `sdk` is the @stellar/stellar-sdk module and `server` its
@@ -74,7 +109,8 @@ export async function scanPoolEvents(
     const req = cursor
       ? { cursor, filters: [{ type: "contract" as const, contractIds: [pool] }], limit: 200 }
       : { startLedger, filters: [{ type: "contract" as const, contractIds: [pool] }], limit: 200 };
-    const resp = await server.getEvents(req);
+    // `server` is untyped (any) here, so pin resp explicitly — withRpcRetry would otherwise widen it.
+    const resp: any = await withRpcRetry(() => server.getEvents(req));
     const events = resp.events ?? [];
     const before = acc.leafAt.size + acc.spent.size + acc.registeredCts.length;
     for (const ev of events) {
