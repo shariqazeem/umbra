@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Archivo, Inter, JetBrains_Mono } from "next/font/google";
 
+import { AppChrome } from "@/components/umbra/app-chrome";
 import "../styles/globals.css";
 
 const inter = Inter({
@@ -50,7 +51,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${archivo.variable}`}>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
-        {children}
+        <AppChrome>{children}</AppChrome>
       </body>
     </html>
   );

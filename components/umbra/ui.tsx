@@ -1,11 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CinematicBackground, SmoothScroll } from "@/components/umbra/cinematic";
 import { Atmosphere } from "@/components/umbra/atmosphere";
 
 /* ─────────────────────────────  Button (ink, never signal)  ───────────────────────────── */
@@ -49,8 +47,13 @@ export function Button({ className, variant, size, loading, children, disabled, 
 
 /* ─────────────────────────────  Card  ───────────────────────────── */
 
-export function Card({ className, elevated, ...props }: React.HTMLAttributes<HTMLDivElement> & { elevated?: boolean }) {
-  return <div className={cn(elevated ? "u-card-lg" : "u-card", className)} {...props} />;
+export function Card({
+  className,
+  elevated,
+  glass,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { elevated?: boolean; glass?: boolean }) {
+  return <div className={cn(glass ? "u-glass rounded-2xl" : elevated ? "u-card-lg" : "u-card", className)} {...props} />;
 }
 
 /* ─────────────────────────────  Fields  ───────────────────────────── */
@@ -129,44 +132,16 @@ export function Pill({ children, tone = "muted" }: { children: React.ReactNode; 
   );
 }
 
-/* ─────────────────────────────  App shell + top nav  ───────────────────────────── */
+/* ─────────────────────────────  App shell  ───────────────────────────── */
 
-export function TopBar({ active }: { active?: string }) {
-  const items = [
-    { href: "/wallet", label: "Wallet" },
-    { href: "/proof", label: "Proof" },
-    { href: "/mainnet", label: "Mainnet" },
-    { href: "/apps", label: "Apps" },
-    { href: "/build", label: "Build" },
-  ];
-  return (
-    <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-shell items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
-          <Logo /> Umbra
-        </Link>
-        <nav className="flex items-center gap-1">
-          {items.map((i) => (
-            <Link
-              key={i.href}
-              href={i.href}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-white/[0.04] hover:text-foreground",
-                active === i.href && "bg-white/[0.04] text-foreground",
-              )}
-            >
-              {i.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
-    </header>
-  );
-}
-
+/**
+ * Per-route content frame. The persistent chrome — Dock, cinematic background, page transitions —
+ * is provided once by `AppChrome` in the root layout, so Shell only centers the page content and
+ * layers optional per-route atmosphere art. Top padding clears the floating Dock. `active` is
+ * accepted for backwards-compat and ignored (the Dock derives the active route from the path).
+ */
 export function Shell({
   children,
-  active,
   atmosphere,
 }: {
   children: React.ReactNode;
@@ -175,11 +150,8 @@ export function Shell({
 }) {
   return (
     <div className="relative min-h-screen">
-      <SmoothScroll />
-      <CinematicBackground />
       {atmosphere ? <Atmosphere src={atmosphere} fixed opacity={0.26} scrim="top" /> : null}
-      <TopBar active={active} />
-      <main className="animate-fade-up relative z-10 mx-auto max-w-shell px-6 py-12 sm:py-16">{children}</main>
+      <main className="relative z-10 mx-auto max-w-shell px-6 pb-20 pt-24 sm:pt-28">{children}</main>
     </div>
   );
 }

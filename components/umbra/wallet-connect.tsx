@@ -109,7 +109,7 @@ function WalletModal({ wallet, onClose }: { wallet: WalletState; onClose: () => 
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        className="u-glass w-full max-w-md rounded-2xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

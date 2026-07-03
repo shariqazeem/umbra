@@ -49,6 +49,11 @@ export function CinematicBackground() {
       <div className="u-aurora-1 absolute left-[30%] top-[18%] h-[48vh] w-[48vh] rounded-full bg-[#FF3B00] opacity-[0.06] blur-[150px]" />
       <div className="absolute inset-0" style={GRID} />
       <div className="absolute inset-0 opacity-[0.05] mix-blend-soft-light" style={{ backgroundImage: GRAIN }} />
+      {/* Film grain plate — above the washes, below content. */}
+      <div
+        className="absolute inset-0 opacity-[0.03] mix-blend-overlay"
+        style={{ backgroundImage: "url(/art/grain.png)", backgroundSize: "cover", backgroundPosition: "center" }}
+      />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_38%,rgba(0,0,0,0.78))]" />
     </div>
   );

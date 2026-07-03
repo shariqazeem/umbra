@@ -68,7 +68,7 @@ export default function LinksPage() {
             )}
           </>
         ) : (
-          <Card elevated className="animate-fade-up mt-2 p-8 text-center">
+          <Card glass className="animate-fade-up mt-2 p-8 text-center">
             <SuccessMark className="mx-auto" size={48} />
             <h1 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">Your payment link is ready</h1>
 

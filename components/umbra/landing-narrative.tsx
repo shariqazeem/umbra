@@ -5,7 +5,6 @@ import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, ChevronDown, Github, Lock } from "lucide-react";
 import { Button, Logo } from "@/components/umbra/ui";
-import { CinematicBackground, SmoothScroll } from "@/components/umbra/cinematic";
 import { Atmosphere } from "@/components/umbra/atmosphere";
 import { PoolScene } from "@/components/umbra/pool-scene";
 import { cn } from "@/lib/utils";
@@ -84,8 +83,6 @@ export function LandingNarrative() {
 
   return (
     <div className="relative">
-      <SmoothScroll />
-      <CinematicBackground />
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/60 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-shell items-center justify-between px-6">

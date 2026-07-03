@@ -80,7 +80,7 @@ export default function InvoicePage() {
             )}
           </>
         ) : (
-          <Card elevated className="animate-fade-up mt-2 p-8 text-center">
+          <Card glass className="animate-fade-up mt-2 p-8 text-center">
             <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-foreground/[0.04] text-foreground">
               <FileText className="h-5 w-5" strokeWidth={1.75} />
             </span>

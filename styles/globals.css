@@ -106,6 +106,11 @@
   .u-signal-glow {
     box-shadow: var(--shadow-signal);
   }
+  /* Glass — the ONE overlay material (dock, command palette, dialogs, success receipts). */
+  .u-glass {
+    @apply border border-white/10 bg-background/70 backdrop-blur-xl;
+    box-shadow: var(--shadow-lg), inset 0 1px 0 0 rgb(255 255 255 / 0.06);
+  }
 }
 
 /* Animation system (see DESIGN_SYSTEM.md §Animation). Calm, purposeful, brief. */
@@ -221,4 +226,21 @@
   @keyframes u-pool-spin { to { transform: rotate(360deg); } }
   .u-pool-spin { animation: u-pool-spin 16s linear infinite; will-change: transform; }
   @media (prefers-reduced-motion: reduce) { .u-pool-spin { animation: none; } }
+}
+
+/* App feel — applied to <html> on app routes (not the landing). Native scroll with hidden
+ * scrollbars (still scrollable + keyboard-focusable), and a default cursor everywhere except
+ * real hyperlinks/inputs — the difference between a document and an app. */
+@layer utilities {
+  .u-app-scroll {
+    scrollbar-width: none;      /* Firefox — content stays scrollable */
+    -ms-overflow-style: none;   /* legacy Edge */
+  }
+  .u-app-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  .u-app-scroll,
+  .u-app-scroll * { cursor: default; }
+  .u-app-scroll a[href] { cursor: pointer; }
+  .u-app-scroll input,
+  .u-app-scroll textarea,
+  .u-app-scroll [contenteditable="true"] { cursor: text; }
 }
