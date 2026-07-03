@@ -12,9 +12,14 @@ import { deriveNoteKey, decryptNoteOpening } from "./note-crypto";
 import type { WalletNote } from "./wallet";
 
 const MAX_NONCE_SCAN = 64; // how many deterministic notes to look for per wallet
-// How far back to scan for events. The RPC walks forward in small pages, so a wide
-// window is slow; a fresh pool's activity is recent. ~4500 ledgers ≈ last ~6 hours.
-const LEDGER_WINDOW = 4500;
+// How far back to scan for events. This MUST reach the pool's oldest leaf, because a
+// spend (withdraw/transfer/claim) proves Merkle inclusion against a root the contract
+// still holds — an incomplete leaf set rebuilds the wrong root → Error #4 (UnknownRoot).
+// A rolling window is bounded by the RPC's event retention (~1–2 days on pubnet); a
+// production indexer (roadmap) lifts that ceiling. ~20000 ledgers ≈ 28h, which covers
+// the canary's life while staying inside retention. Shielding is unaffected (no inclusion
+// proof), which is why a too-small window here only breaks spends, not deposits.
+const LEDGER_WINDOW = 20000;
 
 interface Deposit {
   commitment: bigint;
