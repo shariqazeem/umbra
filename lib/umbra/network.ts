@@ -94,6 +94,11 @@ export function activeContracts(): NetworkContracts | null {
   return NETWORKS[ACTIVE_NETWORK];
 }
 
+/** Human labels for the ACTIVE network, for UI copy. */
+export const NETWORK_LABEL: StellarNetwork = ACTIVE_NETWORK;
+export const NETWORK_DISPLAY = ACTIVE_NETWORK === "mainnet" ? "Stellar mainnet" : "Stellar testnet";
+export const IS_MAINNET = ACTIVE_NETWORK === "mainnet";
+
 /** stellar.expert base for the ACTIVE network (…/explorer/testnet vs …/explorer/public). */
 export function explorerBase(): string {
   return NETWORKS[ACTIVE_NETWORK]?.explorer ?? "https://stellar.expert/explorer/testnet";
@@ -120,9 +125,9 @@ export const READINESS: ReadinessItem[] = [
   { label: "Browser proving", status: "live", detail: "Proofs generated client-side (snarkjs, Web Worker). Secrets never leave the device." },
   { label: "Cross-device recovery", status: "live", detail: "Private balance rebuilt from on-chain events using a deterministic wallet-derived seed." },
   { label: "Selective disclosure", status: "live", detail: "Encrypted audit packets under a user-held viewing key. No backdoor." },
-  { label: "Mainnet deployment", status: "gated", detail: "An invite-only, capped canary may run on mainnet (self-reviewed, not audited, hard per-deposit cap); full public deposits stay gated behind the blockers below until they clear." },
-  { label: "Trusted setup", status: "required", detail: "Groth16 needs an MPC ceremony — or a migration to a transparent proof system (UltraHonk)." },
-  { label: "Independent audit", status: "required", detail: "Contract, circuits, and the BLS verifier path must be audited before real assets." },
+  { label: "Mainnet deployment", status: "live", detail: "Live on Stellar mainnet — open, capped-per-deposit early access. Real shields, private sends, and unshields settle on pubnet today." },
+  { label: "Trusted setup", status: "roadmap", detail: "Groth16 uses a single-contributor setup today; an MPC ceremony (or a transparent system like UltraHonk) is on the roadmap as we lift the cap." },
+  { label: "Independent audit", status: "roadmap", detail: "A professional audit of the contract, circuits, and BLS verifier path is on the roadmap — the natural next step after the hackathon." },
   { label: "Amount privacy", status: "roadmap", detail: "Private sends already hide amounts (join-split, hidden on-chain) and withdrawals keep private change; shield + the withdrawn amount stay public. Full confidential amounts on every path is roadmap." },
   { label: "Fee-privacy relayer", status: "roadmap", detail: "The fee payer is visible on-chain; a relayer removes that correlation." },
   { label: "Production indexer", status: "roadmap", detail: "Scalable note discovery from the deploy ledger onward." },

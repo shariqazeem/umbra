@@ -30,7 +30,7 @@ export default function ShieldPage() {
       if (!input) throw new Error("couldn't prepare the note");
       const proof = await prover.run("shield", input as unknown as Record<string, unknown>);
       if (isChainConfigured()) {
-        if (!wallet.signer) throw new Error("Connect your wallet (or enter a testnet key) to shield on-chain");
+        if (!wallet.signer) throw new Error("Connect your wallet to shield on-chain");
         const { hash, leafIndex } = await submitShield({ proof, commitment, amount: value }, wallet.signer);
         walletStore.observe(commitment, leafIndex);
         setMsg(`tx ${hash}`);

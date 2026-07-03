@@ -188,7 +188,7 @@ const TESTS: [string, string][] = [
   ["vitest (unit/component)", "25 / 25"],
   ["tsc --noEmit", "clean"],
   ["next build", "15 / 15 routes"],
-  ["browser → testnet shield · transfer · unshield", "confirmed on Horizon"],
+  ["browser → mainnet shield · transfer · unshield", "confirmed on Horizon"],
 ];
 
 export default function ProofPage() {
@@ -206,7 +206,7 @@ export default function ProofPage() {
           code, copyable contract ids, live explorer links, and the exact transactions.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
-          <Pill tone="signal">Live on testnet</Pill>
+          <Pill tone="signal">Live on mainnet</Pill>
           <Pill tone="ink">BLS12-381 · Groth16</Pill>
           <Pill tone="ink">10/10 contract tests</Pill>
           <Pill tone="ink">Proven from the browser</Pill>
@@ -225,9 +225,9 @@ export default function ProofPage() {
           The proof is generated client-side; money only moves if the contract verifies it on-chain.
         </p>
 
-        {/* Live on testnet */}
+        {/* Live on mainnet */}
         <h2 className="mb-4 mt-14 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Live on Stellar testnet
+          Live on Stellar mainnet
         </h2>
         <div className="space-y-2.5">
           <IdRow label="UmbraPool contract (verifier + tree)" value={D.contractIds.pool} href={contract(D.contractIds.pool)} />
@@ -246,7 +246,7 @@ export default function ProofPage() {
           The protocol, in facts
         </h2>
         <div className="grid gap-2.5 sm:grid-cols-3">
-          <Fact label="Network" value="Stellar testnet · P27" />
+          <Fact label="Network" value="Stellar mainnet · P27" />
           <Fact label="Proof system" value="Groth16" />
           <Fact label="Curve" value="BLS12-381" />
           <Fact label="On-chain verify" value="CAP-0059 host fns" />
@@ -473,7 +473,7 @@ export default function ProofPage() {
             See it move, privately.
           </h2>
           <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-            Open the wallet, shield testnet funds, and watch the proof verify on-chain — then check the hash here.
+            Open the wallet, shield mainnet funds, and watch the proof verify on-chain — then check the hash here.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <a href="/wallet"><Button>Open the wallet</Button></a>

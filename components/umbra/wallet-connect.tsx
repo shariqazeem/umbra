@@ -6,6 +6,7 @@ import { ExternalLink, KeyRound, Loader2, Wallet, X } from "lucide-react";
 import { Button, Pill } from "@/components/umbra/ui";
 import { freighterInstalled } from "@/lib/umbra/signer";
 import { listKitWallets } from "@/lib/umbra/stellar-wallets-kit";
+import { IS_MAINNET, NETWORK_DISPLAY } from "@/lib/umbra/network";
 import type { WalletState } from "@/hooks/use-wallet";
 
 const trunc = (a: string) => (a.length > 12 ? `${a.slice(0, 5)}…${a.slice(-5)}` : a);
@@ -124,8 +125,8 @@ function WalletModal({ wallet, onClose }: { wallet: WalletState; onClose: () => 
 
         <div className="mt-4 rounded-lg border border-[#FF3B00]/30 bg-[#FF3B00]/[0.06] px-3.5 py-2.5">
           <p className="text-xs leading-relaxed text-foreground/90">
-            Umbra submits to <span className="font-medium">Stellar testnet</span> — make sure your wallet is set to
-            testnet before signing.
+            Umbra submits to <span className="font-medium">{NETWORK_DISPLAY}</span> — make sure your wallet is set to{" "}
+            {IS_MAINNET ? "mainnet" : "testnet"} before signing.
           </p>
         </div>
 
@@ -162,32 +163,34 @@ function WalletModal({ wallet, onClose }: { wallet: WalletState; onClose: () => 
             );
           })}
 
-          {/* Testnet demo key fallback */}
-          <div className="rounded-xl border border-dashed border-border bg-white/[0.02] px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setShowKey((s) => !s)}
-              className="flex w-full items-center justify-between gap-3"
-            >
-              <span className="inline-flex items-center gap-2 text-[15px] font-medium text-foreground">
-                <KeyRound className="h-4 w-4" /> Testnet demo key
-              </span>
-              <Pill tone="muted">testnet only</Pill>
-            </button>
-            {showKey && (
-              <div className="mt-3 flex flex-col gap-2">
-                <input
-                  className="w-full rounded-lg border border-border bg-[#0e0e10] px-3.5 py-2.5 font-mono text-xs text-foreground outline-none transition-all placeholder:text-muted-foreground/50 focus-visible:border-[#FF3B00]/60 focus-visible:ring-4 focus-visible:ring-[#FF3B00]/10"
-                  placeholder="S… (testnet only — never paste a mainnet key)"
-                  value={wallet.key}
-                  onChange={(e) => wallet.setKey(e.target.value)}
-                />
-                <Button size="sm" disabled={!wallet.key.trim()} onClick={onClose} className="self-end">
-                  Use key
-                </Button>
-              </div>
-            )}
-          </div>
+          {/* In-app demo key — testnet ONLY (the app would see the secret). Hidden on mainnet. */}
+          {!IS_MAINNET && (
+            <div className="rounded-xl border border-dashed border-border bg-white/[0.02] px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setShowKey((s) => !s)}
+                className="flex w-full items-center justify-between gap-3"
+              >
+                <span className="inline-flex items-center gap-2 text-[15px] font-medium text-foreground">
+                  <KeyRound className="h-4 w-4" /> Testnet demo key
+                </span>
+                <Pill tone="muted">testnet only</Pill>
+              </button>
+              {showKey && (
+                <div className="mt-3 flex flex-col gap-2">
+                  <input
+                    className="w-full rounded-lg border border-border bg-[#0e0e10] px-3.5 py-2.5 font-mono text-xs text-foreground outline-none transition-all placeholder:text-muted-foreground/50 focus-visible:border-[#FF3B00]/60 focus-visible:ring-4 focus-visible:ring-[#FF3B00]/10"
+                    placeholder="S… (testnet only — never paste a mainnet key)"
+                    value={wallet.key}
+                    onChange={(e) => wallet.setKey(e.target.value)}
+                  />
+                  <Button size="sm" disabled={!wallet.key.trim()} onClick={onClose} className="self-end">
+                    Use key
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {wallet.error && <p className="mt-3 text-center text-xs text-destructive">{wallet.error}</p>}

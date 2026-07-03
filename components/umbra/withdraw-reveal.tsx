@@ -84,7 +84,7 @@ function TxCard({
         <span className="block text-[15px] font-medium text-foreground">{kind}</span>
         <span className="mt-0.5 block text-[11px] text-muted-foreground">{sublabel}</span>
         <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          <Clock className="h-3 w-3" strokeWidth={2.25} /> Awaiting testnet deploy
+          <Clock className="h-3 w-3" strokeWidth={2.25} /> Awaiting mainnet deploy
         </span>
       </div>
     );
@@ -155,7 +155,7 @@ export function WithdrawReveal({
   asset?: string;
   className?: string;
 }) {
-  const network = D.network || "testnet";
+  const network = D.network || "mainnet";
   const withdrawReal = isReal(D.withdrawTx, D.withdrawExplorerUrl);
 
   return (
@@ -226,7 +226,7 @@ export function WithdrawReveal({
             </a>
           </>
         ) : (
-          <span className="text-muted-foreground/70">. The live link appears once deployed to testnet.</span>
+          <span className="text-muted-foreground/70">. The live link appears once deployed to mainnet.</span>
         )}
       </p>
     </section>

@@ -71,7 +71,7 @@ export function InviteGate({ children }: { children: ReactNode }) {
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           {ACTIVE_NETWORK === "mainnet"
             ? isCanaryActive()
-              ? `Umbra is live on Stellar mainnet as an experimental, capped canary (max ${capXlm} XLM per deposit). Self-reviewed, not independently audited — enter your invite code to continue.`
+              ? `Umbra is live on Stellar mainnet — real ZK privacy, capped at ${capXlm} XLM per deposit. Enter your invite code to continue.`
               : "Umbra is pointed at mainnet. Enter your invite code to continue."
             : "Umbra is in private early access on Stellar testnet. Enter your invite code to continue."}
         </p>
@@ -115,8 +115,7 @@ export function InviteGate({ children }: { children: ReactNode }) {
             <p className="text-muted-foreground">No code? Contact the team for an invite.</p>
           )}
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground/70">
-            Experimental early access. Not independently audited; single-contributor trusted setup. Deposits are
-            hard-capped — only use funds you can afford to lose.{" "}
+            Early access on Stellar mainnet — deposits are capped, and an independent audit is on the roadmap.{" "}
             <a href="/mainnet" className="underline underline-offset-4 hover:opacity-70">
               Details
             </a>

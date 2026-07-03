@@ -43,7 +43,7 @@ const id = encodePaymentLink({
 });
 
 // 4 · The Soroban contract verifies the proof on-chain. Done.
-const { pool } = UMBRA_CONTRACTS.testnet;`;
+const { pool } = UMBRA_CONTRACTS.mainnet;`;
 
 const VERIFY = `import { decodePaymentLink } from "@umbra/sdk";
 
@@ -130,7 +130,7 @@ export default function BuildPage() {
             <span className="select-none text-muted-foreground">$ </span>npm i @umbra/sdk
           </code>
           <div className="flex shrink-0 items-center gap-2">
-            <Pill tone="muted"><Terminal className="h-3 w-3" /> testnet</Pill>
+            <Pill tone="muted"><Terminal className="h-3 w-3" /> mainnet</Pill>
             <CopyButton value="npm i @umbra/sdk" className={copyCls} />
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function BuildPage() {
           <Feature icon={Link2} title="Payment-link codec" code="encodePaymentLink · decodePaymentLink">
             Self-contained, integrity-checked links — a pre-authorized shield, no backend.
           </Feature>
-          <Feature icon={Boxes} title="Live contracts" code="UMBRA_CONTRACTS.testnet">
+          <Feature icon={Boxes} title="Live contracts" code="UMBRA_CONTRACTS.mainnet">
             The deployed pool id + network config, ready to invoke.
           </Feature>
         </div>
@@ -190,7 +190,7 @@ export default function BuildPage() {
 
         {/* Live contracts */}
         <h2 className="mb-4 mt-12 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Live on Stellar testnet
+          Live on Stellar mainnet
         </h2>
         <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
@@ -240,7 +240,7 @@ export default function BuildPage() {
               <li>Shield / withdraw Groth16 witness inputs</li>
               <li>BLS12-381 → Soroban byte encoding</li>
               <li>Integrity-checked payment-link codec</li>
-              <li>Live testnet pool + network config</li>
+              <li>Live mainnet pool + network config</li>
             </ul>
           </Card>
           <Card className="p-5">

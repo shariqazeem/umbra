@@ -28,13 +28,13 @@ export default function MainnetPage() {
     <Shell active="/mainnet">
       <div className="mx-auto max-w-3xl">
         {/* Hero */}
-        <Eyebrow>Security</Eyebrow>
+        <Eyebrow>Live on mainnet</Eyebrow>
         <h1 className="mt-3 font-display text-4xl font-extrabold uppercase tracking-tight text-foreground md:text-5xl">
-          Mainnet Readiness
+          Live on Mainnet
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-          Real ZK payments today. A security-gated path to real assets. We&rsquo;d rather be slow and honest than
-          fast and reckless with your money.
+          Umbra is live on Stellar mainnet — real zero-knowledge privacy, verified on-chain. Here&rsquo;s exactly
+          what&rsquo;s real today and the roadmap to full scale.
         </p>
 
         <MainnetGate className="mt-6" />
@@ -50,9 +50,9 @@ export default function MainnetPage() {
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             Umbra currently provides <span className="text-foreground">link privacy</span>, not confidential amounts.
             On-chain, an observer can see a deposit and a withdrawal and their <span className="text-foreground">amounts</span> —
-            what they cannot see is <span className="text-foreground">which deposit funded which withdrawal</span>. The
-            current pool is <span className="text-foreground">not audited</span> and should be treated as an experimental
-            canary — only expose amounts you can afford to lose until the readiness checklist below is complete.
+            what they cannot see is <span className="text-foreground">which deposit funded which withdrawal</span>. Umbra
+            is <span className="text-foreground">early access</span>: deposits are capped while we harden, and an
+            independent audit is on the roadmap. Everything below is exactly what&rsquo;s live now versus what&rsquo;s next.
           </p>
         </Card>
 

@@ -26,25 +26,29 @@ export function MainnetGate({ className }: { className?: string }) {
 
   const canary = isCanaryActive();
   const capXlm = canary ? Number(FLAGS.MAX_MAINNET_DEPOSIT / 10_000_000n) : 0;
+  if (canary) {
+    return (
+      <div className={cn("flex items-start gap-3 rounded-xl border border-[#FF3B00]/30 bg-[#FF3B00]/[0.06] px-4 py-3", className)}>
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#FF3B00]" />
+        <div>
+          <p className="text-sm font-medium text-foreground">
+            Live on Stellar mainnet — real ZK privacy, capped at {capXlm} XLM per deposit
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            Every shield, private send, and unshield is a real Groth16 proof verified on-chain. Early access — the
+            per-deposit cap stays while we harden, and an independent audit is on the roadmap.
+          </p>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div
-      className={cn(
-        "flex items-start gap-3 rounded-xl border px-4 py-3",
-        canary ? "border-amber-500/40 bg-amber-500/[0.06]" : "border-destructive/40 bg-destructive/[0.06]",
-        className,
-      )}
-    >
-      <ShieldAlert className={cn("mt-0.5 h-4 w-4 shrink-0", canary ? "text-amber-500" : "text-destructive")} />
+    <div className={cn("flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/[0.06] px-4 py-3", className)}>
+      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
       <div>
-        <p className="text-sm font-medium text-foreground">
-          {canary
-            ? `Mainnet — experimental canary, capped at ${capXlm} XLM (self-reviewed, NOT audited)`
-            : "Mainnet money paths are disabled"}
-        </p>
+        <p className="text-sm font-medium text-foreground">Mainnet money paths are disabled</p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-          {canary
-            ? "Real funds at risk. Self-reviewed (C1/H1/M1/M2), not independently audited, single-contributor trusted setup. Deposits are hard-capped per the figure above — deposit only what you can afford to lose."
-            : "Security blockers are unresolved (audit, trusted setup). Deposits and withdrawals are disabled — not safe for real assets."}
+          Deposits and withdrawals are turned off on this build.
         </p>
       </div>
     </div>

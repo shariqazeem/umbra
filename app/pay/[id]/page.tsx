@@ -37,7 +37,7 @@ export default function PayPage() {
     setMsg(null);
     try {
       if (isChainConfigured()) {
-        if (!wallet.signer) throw new Error("Connect your wallet (or enter a testnet key) to pay on-chain");
+        if (!wallet.signer) throw new Error("Connect your wallet to pay on-chain");
         const { hash, leafIndex } = await submitShield(
           { proof: payload.proof, commitment: BigInt(payload.commitment), amount: BigInt(payload.amount) },
           wallet.signer,
