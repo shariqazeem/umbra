@@ -14,12 +14,13 @@
   "merkleDepth": 13,
   "capacityNotes": 8192,
   "canaryCapXlm": 5,
-  "status": "experimental invite-only capped canary — self-reviewed, NOT audited, single-contributor trusted setup",
+  "status": "experimental invite-only capped canary \u2014 self-reviewed, NOT audited, single-contributor trusted setup",
   "deployedAt": "2026-07-02T21:37:54Z",
   "demoTxs": {
     "note": "Full private-send cycle, real on Stellar MAINNET at depth 13. Every entrypoint verified live.",
     "shield": "9970804ed373ac17f87ba92d1aaca7b6dc25abb7144438974a492619e40a7f80",
     "transfer": "0a65cf2814985086c1f628a16a3ad9fdc3a6e5df8e4c98aa3849b3bc0cb62c08",
     "claim": "5e539120be8389061b4c9d26bdd774af34b1da21644b5c7cbbbfcf04be5679f8"
-  }
+  },
+  "deployLedger": 63300617
 }

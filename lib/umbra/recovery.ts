@@ -7,19 +7,22 @@
 //      wallet's note key. This is what lets change notes recover on any device (note-crypto.ts).
 import { commitment as noteCommitment, nullifier } from "@umbra/wallet-core";
 import { UMBRA_CONFIG } from "./config";
+import { activeDeployment } from "./deployment";
 import { deriveNoteSecret } from "./note-derivation";
 import { deriveNoteKey, decryptNoteOpening } from "./note-crypto";
 import type { WalletNote } from "./wallet";
 
 const MAX_NONCE_SCAN = 64; // how many deterministic notes to look for per wallet
-// How far back to scan for events. This MUST reach the pool's oldest leaf, because a
-// spend (withdraw/transfer/claim) proves Merkle inclusion against a root the contract
-// still holds — an incomplete leaf set rebuilds the wrong root → Error #4 (UnknownRoot).
-// A rolling window is bounded by the RPC's event retention (~1–2 days on pubnet); a
-// production indexer (roadmap) lifts that ceiling. ~20000 ledgers ≈ 28h, which covers
-// the canary's life while staying inside retention. Shielding is unaffected (no inclusion
-// proof), which is why a too-small window here only breaks spends, not deposits.
-const LEDGER_WINDOW = 20000;
+// The event scan MUST reach the pool's oldest leaf. A spend (withdraw/transfer/claim) proves
+// Merkle inclusion against a root the contract still holds, so a partial leaf set rebuilds the
+// wrong root and the contract rejects it as Error #4 (UnknownRoot). Shielding needs no inclusion
+// proof, which is why a short scan only breaks spends, not deposits. We start from the pool's
+// deploy ledger, clamped to the RPC's retention floor (probed at runtime) so getEvents never
+// errors. That keeps recovery correct for the whole retention window (~7 days on pubnet). Beyond
+// retention a production indexer (roadmap) is required. LEDGER_WINDOW is only a safe fallback used
+// if the retention probe fails.
+const LEDGER_WINDOW = 17280;
+const DEPLOY_LEDGER = Number((activeDeployment as { deployLedger?: number }).deployLedger ?? 0);
 
 interface Deposit {
   commitment: bigint;
@@ -71,7 +74,23 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   if (!pool) return { allLeaves: [], owned: [], scannedDeposits: 0 };
 
   const latest = await server.getLatestLedger();
-  const startLedger = Math.max(1, latest.sequence - LEDGER_WINDOW);
+  // Probe the RPC's oldest retained ledger so we can scan the widest range without an
+  // out-of-range error, then start from the pool's deploy ledger when it is still retained.
+  let oldestRetained = 0;
+  try {
+    const probe = await server.getEvents({
+      startLedger: Math.max(1, latest.sequence - 256),
+      filters: [{ type: "contract" as const, contractIds: [pool] }],
+      limit: 1,
+    } as Parameters<typeof server.getEvents>[0]);
+    oldestRetained = Number((probe as { oldestLedger?: number }).oldestLedger ?? 0);
+  } catch {
+    /* probe failed — fall back to the rolling window below */
+  }
+  const startLedger =
+    oldestRetained > 0
+      ? Math.max(oldestRetained, DEPLOY_LEDGER)
+      : Math.max(1, latest.sequence - LEDGER_WINDOW);
 
   const deposits: Deposit[] = [];
   const spent = new Set<string>();
@@ -85,7 +104,7 @@ export async function recoverFromChain(seed: bigint): Promise<RecoveryResult> {
   // last activity (we've walked past it), or at the hard page cap.
   let found = false;
   let emptyStreak = 0;
-  for (let page = 0; page < 16; page++) {
+  for (let page = 0; page < 40; page++) {
     const req = cursor
       ? { cursor, filters: [{ type: "contract" as const, contractIds: [pool] }], limit: 200 }
       : { startLedger, filters: [{ type: "contract" as const, contractIds: [pool] }], limit: 200 };
