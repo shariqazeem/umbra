@@ -116,7 +116,19 @@ class WalletStore {
     return this.seed;
   }
 
-  private nextNonce(): number {
+  /**
+   * Pick a derivation nonce whose (secret, value) commitment is not already present — among our
+   * own notes OR the full on-chain leaf set. A naive max(nonce)+1 counter breaks after a sync:
+   * recovered notes carry no nonce, so it resets to 0 and re-derives secrets that already exist,
+   * minting duplicate commitments the wallet can't tell apart. Choosing the first collision-free
+   * nonce keeps every commitment unique and still re-derivable by recovery (it scans 0..N).
+   */
+  private freshNonce(value: bigint): number {
+    const taken = new Set(this.notes.map((n) => noteCommitment(toNote(n)).toString()));
+    for (const l of this.allLeaves) taken.add(l.toString());
+    for (let n = 0; n < 4096; n++) {
+      if (!taken.has(noteCommitment({ secret: deriveNoteSecret(this.seed!, n), value }).toString())) return n;
+    }
     const used = this.notes.map((n) => n.nonce).filter((x): x is number => typeof x === "number");
     return used.length ? Math.max(...used) + 1 : 0;
   }
@@ -126,7 +138,7 @@ class WalletStore {
     let secret: bigint;
     let nonce: number | undefined;
     if (this.seed !== null) {
-      nonce = this.nextNonce();
+      nonce = this.freshNonce(value);
       secret = deriveNoteSecret(this.seed, nonce);
     } else {
       secret = makeNote(value).secret;
@@ -149,7 +161,9 @@ class WalletStore {
   }
 
   markSpent(commitment: bigint): void {
-    const note = this.notes.find((n) => noteCommitment(toNote(n)) === commitment);
+    // Mark the first UNSPENT match, so duplicate-commitment notes are retired one spend at a time
+    // (and in step with whichever note withdraw/transfer actually spent).
+    const note = this.notes.find((n) => noteCommitment(toNote(n)) === commitment && !n.spent);
     if (note) {
       note.spent = true;
       this.commit();
@@ -168,16 +182,21 @@ class WalletStore {
   loadChainState(allLeaves: bigint[], owned: WalletNote[]): void {
     this.allLeaves = allLeaves;
     const leafSet = new Set(allLeaves.map((l) => l.toString()));
-    const byCommitment = new Map<string, WalletNote>();
+    // Key by on-chain LEAF INDEX, never by commitment. Duplicate note secrets (from a reset nonce
+    // counter) make several distinct notes — different leaves, each independently spendable via a
+    // leaf-bound nullifier — share one commitment. Keying by commitment collapses them and hides
+    // real, spendable balance. Leaf index is unique per note, so it never loses one.
+    const byLeaf = new Map<number, WalletNote>();
     for (const n of this.notes) {
       if (n.leafIndex === null) continue;
       const cm = noteCommitment(toNote(n)).toString();
-      if (leafSet.has(cm)) byCommitment.set(cm, n);
+      if (leafSet.has(cm)) byLeaf.set(n.leafIndex, n);
     }
     for (const n of owned) {
-      byCommitment.set(noteCommitment(toNote(n)).toString(), n);
+      if (n.leafIndex === null) continue;
+      byLeaf.set(n.leafIndex, n);
     }
-    this.notes = [...byCommitment.values()];
+    this.notes = [...byLeaf.values()];
     this.commit();
   }
 
@@ -212,7 +231,9 @@ class WalletStore {
     amount: bigint,
     change: { secret: bigint; value: bigint },
   ): WithdrawInput | null {
-    const note = this.notes.find((n) => noteCommitment(toNote(n)) === commitment);
+    // Prefer an UNSPENT note: several notes can share a commitment, and spending an already-spent
+    // duplicate would revert on-chain (NullifierAlreadySpent).
+    const note = this.notes.find((n) => noteCommitment(toNote(n)) === commitment && !n.spent && n.leafIndex !== null);
     if (!note || note.leafIndex === null) return null;
     return buildWithdrawInput(toNote(note), this.tree(), recipientField(recipientId), amount, {
       secret: change.secret,
@@ -230,7 +251,8 @@ class WalletStore {
     out1: { secret: bigint; value: bigint },
     out2: { secret: bigint; value: bigint },
   ): TransferInput | null {
-    const note = this.notes.find((n) => noteCommitment(toNote(n)) === inCommitment);
+    // Prefer an UNSPENT note: duplicate commitments must not spend an already-spent leaf.
+    const note = this.notes.find((n) => noteCommitment(toNote(n)) === inCommitment && !n.spent && n.leafIndex !== null);
     if (!note || note.leafIndex === null) return null;
     return buildTransferInput(
       toNote(note),
