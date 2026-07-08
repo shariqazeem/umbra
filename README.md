@@ -1,136 +1,162 @@
+<div align="center">
+
 # Umbra
 
-**A consumer privacy wallet for Stellar.** Shield funds into a pool, generate a
-zero-knowledge proof **in your browser**, and withdraw/send **privately** after a
-Soroban smart contract verifies the proof **on-chain**. The private link between a
-deposit and a withdrawal is hidden; the **amount is currently public**. Umbra also has
-payment links, **selective disclosure**, and **wallet-linked cross-device recovery**.
+### Private money on Stellar.
 
-> Everyone can build a ZK verifier. **We built the wallet around it.**
+**Shield funds into a pool, generate a zero-knowledge proof _in your browser_, and send or cash out privately — a Soroban smart contract verifies every proof _on-chain_ before a single stroop moves.** The link between a deposit and a withdrawal is broken; a private send hides the amount entirely.
+
+[![status](https://img.shields.io/badge/status-live_on_mainnet-FF3B00)](https://getumbra.xyz)
+[![network](https://img.shields.io/badge/Stellar-Public_Network-111)](https://stellar.expert/explorer/public/contract/CBWIV33FQ27LOTA2LGM5SVL2WHAMBFLZTYOZXWKEMDBFCLU4BNIUQOLU)
+[![app](https://img.shields.io/badge/app-getumbra.xyz-FF3B00)](https://getumbra.xyz)
+[![proofs](https://img.shields.io/badge/proofs-Groth16_·_BLS12--381-635BFF)](https://getumbra.xyz/proof)
+
+**[getumbra.xyz](https://getumbra.xyz)** · [verify it on-chain](https://getumbra.xyz/proof) · [mainnet readiness](https://getumbra.xyz/mainnet)
+
+</div>
+
+> Everyone can ship a ZK verifier. **We built the wallet around it** — and put it on mainnet.
 
 ---
 
-## In 20 seconds
+## Live on Stellar mainnet (real, verifiable)
 
-| Question | Answer |
+Umbra runs on the **Stellar Public Network** as an open, capped early-access canary. Every entrypoint has been exercised with real XLM — click through and check:
+
+| | On-chain evidence |
 | --- | --- |
-| **What is Umbra?** | A consumer privacy wallet on Stellar — shield, send privately, unshield, pay links. |
-| **What does ZK do?** | Money can't move without a Groth16 proof. Shield proves a note is well-formed; withdraw proves you own a note (Merkle inclusion + ownership + nullifier + recipient + amount) **without revealing which note**. |
-| **What touches Stellar?** | A **Soroban contract verifies the proof on-chain** (BLS12-381 via CAP-0059 host functions) before any funds move. |
-| **What works today?** | Shield · send · unshield · payment/donation/invoice links · in-browser proving · multi-wallet signing · selective disclosure · **cross-device recovery** — all live on **testnet**. |
-| **What's the honest limit?** | **Link privacy, not confidential amounts** (amounts are public). **Unaudited.** Single-contributor trusted setup. Not for real assets yet. |
-| **Verify it?** | In-app **`/proof`** (copyable contract ids + real tx links) and **`/mainnet`** (security-gated readiness). |
+| **Pool contract** | [`CBWIV33F…QOLU`](https://stellar.expert/explorer/public/contract/CBWIV33FQ27LOTA2LGM5SVL2WHAMBFLZTYOZXWKEMDBFCLU4BNIUQOLU) |
+| **Shield** (private deposit) | [`9970804e…`](https://stellar.expert/explorer/public/tx/9970804ed373ac17f87ba92d1aaca7b6dc25abb7144438974a492619e40a7f80) |
+| **Private send** (join-split, amount hidden) | [`0a65cf28…`](https://stellar.expert/explorer/public/tx/0a65cf2814985086c1f628a16a3ad9fdc3a6e5df8e4c98aa3849b3bc0cb62c08) |
+| **Claim** (recipient, link only) | [`5e539120…`](https://stellar.expert/explorer/public/tx/5e539120be8389061b4c9d26bdd774af34b1da21644b5c7cbbbfcf04be5679f8) |
+| **Deploy** | [`f3d0a294…`](https://stellar.expert/explorer/public/tx/f3d0a294bef424da8dce0c6ce7e4294d673bd496b22a05a57f4214f7409f5f62) · wasm `968eb0db…` |
+
+On-chain, that shield and its later spend **share no linking data.** That is the product. Contract ids and live transactions are surfaced (and copyable) in-app at **[/proof](https://getumbra.xyz/proof)**.
 
 ---
 
-## Live on Stellar testnet (real, verifiable)
+## What you can do
 
-- **Pool contract (hardened — C1/H1/M1/M2):** [`CCBNNCXZ…JHX`](https://stellar.expert/explorer/testnet/contract/CCBNNCXZCRAEFMHNHKTDK6G2P2LRYWS7SDKGMJABSPO34223Y75HFJHX)
-- **Real shield deposit:** [`ef25404c…`](https://stellar.expert/explorer/testnet/tx/ef25404c5fadf4b4ab4c071bbea608811bf1dcad13535e0d47893f1f7f742597)
-- **Withdraw where the proof was verified on-chain and bound to the payout address (C1):** [`a37f97c2…`](https://stellar.expert/explorer/testnet/tx/a37f97c22147998eaddf1cff1a98b1ba6318361e663072b2d1a41805a15a4e73)
-- **C1 enforced live:** the same proof aimed at a different address is rejected on-chain
-  (`Error(Contract, #8) RecipientMismatch`) — a stolen proof can't be redirected.
-- The **same flow driven entirely from the browser** (no terminal): see [`docs/BROWSER_E2E.md`](docs/BROWSER_E2E.md).
+- **Shield** — move public XLM into the privacy pool in one click. A Poseidon commitment is inserted into an on-chain Merkle tree; your note secret never leaves the browser.
+- **Send privately** — a join-split spend where **the amount never touches the ledger.** The recipient receives a one-time **claim link** — no account, no address, nothing public.
+- **Unshield** — cash out to any Stellar wallet. The payout is public; the change you keep stays hidden.
+- **Payment links · invoices · donations** — get paid privately. The link is bound to your wallet, so whatever people pay lands in a note **you can withdraw on any device.**
+- **Cross-device recovery** — your private balance **follows your wallet.** No account, no server, no custodian: notes are re-derived from a wallet signature and rediscovered by scanning the chain.
+- **Selective disclosure** — you hold a viewing key and can export a signed audit packet to an accountant or auditor. Private by default; provable when _you_ choose.
 
-On-chain, the deposit and the withdrawal **share no linking data** — that is the
-product. (Values mirror `infra/deploy/deployment.json`; the running app uses its own
-fresh pool, surfaced in `/proof`.)
+Sign with **Freighter, xBull, Albedo, or LOBSTR** (Stellar Wallets Kit). Umbra never sees your secret key.
+
+---
 
 ## How a private payment works
 
 ```
-Wallet → Note → Commitment → Browser proof (snarkjs) → Soroban verifier (on-chain) → Pool transfer → Explorer
-         secret stays local        proves membership without        no valid proof,
-                                    revealing which note             no payout
+Wallet ─▶ Note ─▶ Commitment ─▶ Browser proof (snarkjs) ─▶ Soroban verifier (on-chain) ─▶ Pool ─▶ Explorer
+          secret stays          proves ownership + membership       no valid proof,
+          on your device        without revealing which note        no payout
 ```
 
-`shield()` verifies a Groth16 proof, pulls funds, and inserts a Poseidon commitment into
-an on-chain Merkle tree. `withdraw()` verifies a proof of inclusion + ownership + a
-one-time nullifier + recipient binding + amount conservation, rejects spent nullifiers
-and unknown roots, and pays out. The Groth16 verifier is a Rust library compiled into
-the pool, so verification happens inside the same on-chain call. Plain-English contract
-walkthrough: [`docs/PRODUCT_STATE.md` §5](docs/PRODUCT_STATE.md).
+- **`shield`** verifies a Groth16 proof, pulls the funds, and inserts a Poseidon commitment as a Merkle leaf.
+- **`transfer`** (private send) verifies a join-split: one input note is spent, two output notes are created, value is conserved — **all amounts hidden.** The recipient's note is deferred and inserted only when they **`claim`** it.
+- **`withdraw`** verifies inclusion + ownership + a one-time nullifier + **recipient binding** + amount conservation, rejects spent nullifiers and unknown roots, and pays out.
 
-## Demo script (≈2.5 min)
+The Groth16 verifier is a Rust library compiled **into** the pool, so verification happens inside the same on-chain call — over **BLS12-381 via CAP-0059 host functions** (native pairings). Custom **Circom** circuits (shield · withdraw · transfer · claim); commitments and the tree use **Poseidon**.
 
-1. Open the landing — **“Private money on Stellar.”**
-2. Open the **wallet**, connect **Freighter**.
-3. **Shield** funds → watch the **browser proving lifecycle** (proving → signing → submitting → confirming).
-4. Click the **explorer link** — the proof, verified on-chain.
-5. **Send privately** / unshield → success shows **“What you did · What Stellar saw · What Umbra proved privately.”**
-6. **Wipe local storage** (or switch device) → reconnect the wallet → **balance comes back from the chain.**
-7. Open **`/proof`** (evidence) and end on **`/mainnet`** (honest blockers, serious path).
+**Depth-13 Merkle tree → 8,192 notes**, reached by a hard **≤1 leaf-insert-per-action** invariant so even a join-split fits Stellar's per-transaction budget. Withdrawals are **bound to the payout address** — a stolen proof aimed at a different address is rejected on-chain with `Error(Contract, #8) RecipientMismatch`.
 
-> “Umbra is not a slide about privacy. It’s a working private wallet where Stellar
-> verifies the proof on-chain — and your private balance follows your wallet anywhere.”
+---
+
+## What's private, and what isn't
+
+Umbra is honest about its boundaries — this matters more than the pitch.
+
+| | Private | Public |
+| --- | --- | --- |
+| **Shield** (deposit) | which note you own, your future spends | the deposit amount (on/off-ramp) |
+| **Private send** | sender, recipient, **and amount** | nothing links the two sides |
+| **Unshield** (withdraw) | which note funded it, your change | the payout amount + destination |
+
+So: a **private transfer is fully confidential**; the **on/off ramps move a public amount** (shield in, unshield out). Confidential ramp amounts are on the roadmap.
+
+---
 
 ## Run it locally
 
-```bash
-corepack pnpm install        # workspace install (uses workspace:* deps)
-corepack pnpm dev            # app → http://localhost:3000
-```
-
-**Environment** (`.env.local`, optional — without it the app does all local crypto and
-only on-chain submission is disabled):
+Umbra is a **pnpm workspace** (Next.js 15 · React 19 · TypeScript). Use `corepack` so the pinned pnpm is used automatically.
 
 ```bash
-NEXT_PUBLIC_UMBRA_POOL_CONTRACT=<C...>   # a deployed UmbraPool on testnet
-# defaults: RPC = soroban-testnet.stellar.org, passphrase = Test SDF Network ; September 2015
+corepack pnpm install     # workspace install (uses workspace:* deps — npm can't resolve these)
+corepack pnpm dev         # app → http://localhost:3000
 ```
 
-**Deploy a fresh pool** (Stellar CLI + a funded `umbra-deployer` testnet key):
+Without env vars the app still does **all local crypto** (wallet, commitment, witness, proof) — only on-chain submission needs a configured pool. To point it at the **live mainnet pool** (read + recover), create `.env.local`:
 
 ```bash
-bash infra/deploy/deploy-slice.sh --force   # builds, deploys, inits (binds vk + token)
-# if init reports "Storage MissingValue" (RPC lag), re-run the init invoke once — see PRODUCT_STATE §10
+NEXT_PUBLIC_UMBRA_NETWORK=mainnet
+NEXT_PUBLIC_UMBRA_POOL_CONTRACT=CBWIV33FQ27LOTA2LGM5SVL2WHAMBFLZTYOZXWKEMDBFCLU4BNIUQOLU
+NEXT_PUBLIC_UMBRA_RPC_URL=https://mainnet.sorobanrpc.com
+NEXT_PUBLIC_UMBRA_NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+NEXT_PUBLIC_UMBRA_MAX_DEPOSIT_XLM=100   # arms the canary's hard per-deposit cap
 ```
 
-**Tests / checks:**
+> Freighter refuses to connect over plain `http://localhost` (no SSL). For a full on-chain run, use the deployed app at **[getumbra.xyz](https://getumbra.xyz)**; local dev is for the UI and in-browser proving.
+
+**Checks:**
 
 ```bash
-cargo test -p umbra-pool          # 6/6 — real Groth16 proofs vs the real BLS12-381 host
-corepack pnpm exec vitest run     # 25/25 — crypto, recovery non-collision, payment-link tamper, components
-corepack pnpm typecheck           # tsc --noEmit, clean
-corepack pnpm build               # next build, 15/15 routes
+cargo test -p umbra-pool            # 14/14 — real Groth16 proofs against the real BLS12-381 host
+corepack pnpm test                  # 33/33 — crypto, recovery, duplicate-note & payment-link regressions, components
+corepack pnpm typecheck             # tsc --noEmit — clean
+corepack pnpm build                 # next build — clean
 ```
 
-## ⚠️ Security & honesty
+### Recovery that survives forever
 
-- **Link privacy, not confidential amounts.** Amounts are **public** on-chain; only the
-  deposit↔withdrawal link is hidden.
-- **Unaudited.** The contract, circuits, and verifier path have **not** been audited.
-- **Single-contributor trusted setup** (Groth16) — demo-grade.
-- **Testnet only.** Mainnet money paths are hard-disabled and **security-gated**
-  (the in-app `/mainnet` page). Do **not** use for real assets.
-- Internal review: [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) (incl. the
-  fee-payer privacy leak and a nullifier-TTL/double-spend caveat).
+A spend must rebuild the full Merkle tree to prove inclusion, but Soroban RPC only retains events for ~24h–7d. A scheduled **snapshot indexer** ([`.github/workflows/pool-snapshot.yml`](.github/workflows/pool-snapshot.yml)) ingests the pool's events into a permanent, statically-served record before they expire, so recovery — and therefore every private spend — keeps working for the entire life of the pool.
 
-## Roadmap to mainnet
+---
 
-Independent **audit** · **MPC trusted-setup ceremony** (or transparent-proof migration)
-· **confidential amounts** (or build on [Stellar Confidential Tokens](docs/CONFIDENTIAL_TOKENS_STRATEGY.md))
-· **fee-privacy relayer** ([`docs/RELAYER.md`](docs/RELAYER.md)) · **production indexer**
-([`docs/INDEXER.md`](docs/INDEXER.md)) · Merkle depth 20 · deployer multisig. Full
-scorecard in-app at `/mainnet`.
+## Security & honesty
+
+This is an **experimental capped canary**, deliberately labelled as such everywhere — never "safe," never "audited."
+
+- **Amounts are confidential on private sends, public on the on/off ramp** (shield/unshield).
+- **Self-reviewed, _not_ professionally audited.** The contract, circuits, and verifier path have been reviewed internally (see [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md)) — that is not a substitute for an external audit.
+- **Single-contributor Groth16 trusted setup.** Demo-grade until an MPC ceremony (or a transparent-proof migration).
+- **Hard per-deposit cap** keeps real-money exposure small while the system earns trust.
+- Withdrawals are **recipient-bound** (a stolen proof can't be redirected), nullifiers are one-time (no double-spend), and only the note-secret holder can ever withdraw.
+
+Live readiness scorecard, with the honest blockers, is in-app at **[/mainnet](https://getumbra.xyz/mainnet)**.
+
+---
 
 ## Repository structure
 
 ```
 contracts/        Soroban (Rust): umbra-pool · groth16-verifier · bench-pool
-circuits/         Circom (BLS12-381): shield · withdraw · merkle · poseidon
-packages/         crypto-bls · wallet-core · sdk (@umbra/sdk) · benchmarks · bench-harness
-app/              Next.js routes: / · wallet · proof · mainnet · audit · build · apps · pay/[id] · links · donate · invoice
-components/umbra/  premium UI · cinematic bg · pool scene · proof/lifecycle · wallet-connect · success mark
-lib/umbra/        wallet store · prover (worker) · soroban client · signer + wallets-kit · note-derivation + recovery · viewing-key + audit · payment links · network/gates · rails (PrivacyRail)
+circuits/         Circom (BLS12-381): shield · withdraw · transfer · claim · merkle (Poseidon via circomlib)
+packages/         @umbra/crypto-bls · @umbra/wallet-core · @umbra/sdk · benchmarks
+app/              Next.js routes: / · wallet · proof · mainnet · apps · shield · pay/[id] · claim/[code] · links · donate · invoice · audit · build
+components/umbra/  UI system (Totality) · pool scene · proof lifecycle · wallet-connect · success mark
+lib/umbra/        wallet store · prover (worker) · soroban client · signer + wallets-kit · note-derivation + recovery · pool-events (snapshot) · viewing-key + audit · payment links · network gates
 hooks/            useProver · useWallet · useCopyToClipboard
-infra/deploy/     testnet deploy scripts + deployment.json (live-evidence source of truth)
-docs/             PRODUCT_STATE · SECURITY_REVIEW · RELAYER · INDEXER · CONFIDENTIAL_TOKENS_STRATEGY · BROWSER_E2E · SCOPE · …
+scripts/          build-snapshot.mts (permanent event indexer)
+infra/deploy/     mainnet deploy scripts + deployment.mainnet.json (on-chain source of truth)
+docs/             ARCHITECTURE · SECURITY_REVIEW · UMBRA_MAINNET_SPEC · DEEPER_TREE · RELAYER · INDEXER · …
 ```
 
-## Key docs
+---
 
-- [`docs/PRODUCT_STATE.md`](docs/PRODUCT_STATE.md) — full technical state + plain-English contracts.
-- [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) — internal review (not an audit).
-- [`docs/CONFIDENTIAL_TOKENS_STRATEGY.md`](docs/CONFIDENTIAL_TOKENS_STRATEGY.md) — the CT adapter strategy.
-- In-app: `/proof` (verify everything), `/mainnet` (readiness & gates).
+## Roadmap to production
+
+Independent **security audit** · **MPC trusted-setup ceremony** (or transparent-proof migration) · **confidential ramp amounts** · **fee-privacy relayer** so gas doesn't deanonymize the payer · **deeper tree / rollup** beyond 8,192 notes ([`docs/DEEPER_TREE.md`](docs/DEEPER_TREE.md)) · deployer multisig. The full, honest scorecard lives at **[/mainnet](https://getumbra.xyz/mainnet)**.
+
+---
+
+<div align="center">
+
+**[Open the app →](https://getumbra.xyz)**  ·  [Verify on-chain](https://getumbra.xyz/proof)  ·  [Architecture](docs/ARCHITECTURE.md)  ·  [Security review](docs/SECURITY_REVIEW.md)
+
+<sub>Built on Stellar · Soroban · Groth16/BLS12-381. Private by default; provable when you choose.</sub>
+
+</div>
