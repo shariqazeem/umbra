@@ -16,6 +16,9 @@
 //     only ever in the recipient's wallet, never in the link.
 import { walletStore } from "./wallet";
 import { proveShield, type Groth16ProofJson } from "./prover";
+import { deriveSeed } from "./note-derivation";
+import { isChainConfigured } from "./config";
+import type { Signer } from "./signer";
 
 export interface PaymentLinkPayload {
   v: 1;
@@ -55,7 +58,21 @@ export async function createPaymentLink(args: {
   description: string;
   recipientName: string;
   amount: bigint;
+  signer: Signer | null;
 }): Promise<CreatedLink> {
+  // A link is only "real" when the note it mints is RECOVERABLE — derived from your wallet seed,
+  // not a throwaway random secret stuck in one browser. On a live chain we require a connected
+  // wallet and install its seed, so whoever pays funds a note your wallet can rediscover (recovery
+  // matches deposits by amount) and withdraw on ANY device. Without this, money paid to the link
+  // would be unspendable off the exact browser that created it.
+  if (isChainConfigured() && !args.signer) {
+    throw new Error(
+      "Connect your wallet first — a payment link must be tied to your wallet so you can withdraw what people pay you.",
+    );
+  }
+  if (args.signer && !walletStore.hasSeed()) {
+    walletStore.setSeed(await deriveSeed(args.signer));
+  }
   const { commitment } = walletStore.createNote(args.amount);
   const input = walletStore.shieldInput(commitment);
   if (!input) throw new Error("failed to build shield input");

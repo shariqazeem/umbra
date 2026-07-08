@@ -423,6 +423,7 @@ export default function WalletPage() {
         description: "",
         recipientName: "You",
         amount: xlmToStroops(amount),
+        signer: wallet.signer,
       });
       setLink(l);
       void auditStore.log({
